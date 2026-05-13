@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "implexa": {
+      "command": "npx",
+      "args": ["-y", "@implexa/mcp-server"],
+      "env": {
+        "IMPLEXA_API_KEY": "${IMPLEXA_API_KEY}",
+        "IMPLEXA_API_URL": "${IMPLEXA_API_URL:-https://core.implexa.ai}"
+      }
+    }
+  }
+}

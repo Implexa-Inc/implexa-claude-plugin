@@ -1,0 +1,14 @@
+{
+  "name": "implexa",
+  "owner": {
+    "name": "Implexa",
+    "url": "https://implexa.ai"
+  },
+  "description": "Local development marketplace for the Implexa Claude Code plugin",
+  "plugins": [
+    {
+      "name": "implexa",
+      "source": "./"
+    }
+  ]
+}

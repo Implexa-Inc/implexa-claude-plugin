@@ -1,0 +1,31 @@
+{
+  "name": "implexa",
+  "version": "0.1.0",
+  "description": "Skill recording for any AI session — capture once, replay forever. Demonstrate any workflow once and Implexa turns it into a 6-component reusable skill (intent + inputs + procedure + decision points + output contract + outcome signal) via post-demonstration interview. Share with your team via a domain-gated link, post publicly (PII removed), or fork from a horizontal Playbook library. Every captured workflow includes Revenoid tool calls, non-tool actions logged via record_demo_note, and full host-side conversation transcript. ~26 MCP tools across the Skill Graph stack plus external data fetching (Fiber AI company + people search, Coresignal career history + jobs + LinkedIn posts, Apollo contacts). Renders wherever the LLM lives. Built on MCIP.",
+  "author": {
+    "name": "Implexa",
+    "url": "https://implexa.ai"
+  },
+  "homepage": "https://implexa.ai",
+  "repository": "https://github.com/Implexa-Inc/implexa-claude-plugin",
+  "license": "MIT",
+  "keywords": [
+    "skill-graph",
+    "skill-recording",
+    "workflow-capture",
+    "agent-skills",
+    "claude-skills",
+    "outcome-attribution",
+    "skill-sharing",
+    "viral-skill",
+    "mcp",
+    "mcip",
+    "implexa",
+    "company-brain",
+    "knowledge-capture",
+    "automation",
+    "ai-workflows",
+    "anthropic-skills",
+    "claude-code"
+  ]
+}

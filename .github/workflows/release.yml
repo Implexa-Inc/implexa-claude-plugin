@@ -1,0 +1,102 @@
+name: Auto-tag + release on version bump
+
+# Fires on every push to main. Reads the version from .claude-plugin/plugin.json
+# and, if no git tag exists for that version yet, creates one and a matching
+# GitHub Release with notes auto-generated from commits since the previous
+# tag. The Anthropic plugin marketplace + downstream installers can use the
+# resulting release as a stable pin (instead of tracking a moving main).
+#
+# Usage: bump the "version" field in .claude-plugin/plugin.json, commit the
+# change with the rest of your work, push to main. No manual tagging needed.
+#
+# Idempotent: if the tag already exists (e.g. you push a docs-only commit
+# without bumping the version), the workflow exits cleanly without doing
+# anything.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Run on every main push so docs-only changes still bump if version
+      # was bumped in a prior commit. The duplicate-tag guard below makes
+      # the no-op case safe.
+      - '**'
+
+permissions:
+  contents: write   # needed to create tags + releases
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history so we can diff against last tag)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Read version from plugin.json
+        id: version
+        run: |
+          VERSION=$(node -p "require('./.claude-plugin/plugin.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION"   >> "$GITHUB_OUTPUT"
+          echo "Plugin version: $VERSION (tag: v$VERSION)"
+
+      - name: Check whether tag already exists
+        id: tag_check
+        run: |
+          if git rev-parse "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ steps.version.outputs.tag }} already exists — skipping."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ steps.version.outputs.tag }} does not yet exist — will create."
+          fi
+
+      - name: Find previous tag (for changelog range)
+        if: steps.tag_check.outputs.exists == 'false'
+        id: prev_tag
+        run: |
+          # Most recent annotated/lightweight tag matching v* before HEAD.
+          # Empty if this is the first release — the changelog step handles
+          # that gracefully.
+          PREV=$(git tag --list 'v*' --sort=-v:refname | head -n 1 || true)
+          echo "previous=$PREV" >> "$GITHUB_OUTPUT"
+          echo "Previous tag: ${PREV:-<none>}"
+
+      - name: Generate release notes from commit log
+        if: steps.tag_check.outputs.exists == 'false'
+        id: notes
+        run: |
+          PREV='${{ steps.prev_tag.outputs.previous }}'
+          if [ -n "$PREV" ]; then
+            RANGE="$PREV..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+          {
+            echo "## Changes since ${PREV:-the beginning}"
+            echo ""
+            git log --pretty=format:'- %s (%h)' "$RANGE" -- ':!.github' | head -100
+            echo ""
+            echo ""
+            echo "---"
+            echo "Install: \`claude plugin install implexa@implexa\` after \`claude plugin marketplace add Implexa-Inc/implexa-claude-plugin\`."
+            echo ""
+            echo "Full diff: ${{ github.server_url }}/${{ github.repository }}/compare/${PREV:-${{ github.sha }}}...${{ steps.version.outputs.tag }}"
+          } > release_notes.md
+          echo "--- generated notes ---"
+          cat release_notes.md
+
+      - name: Create tag + GitHub release
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name:     "Implexa plugin ${{ steps.version.outputs.tag }}"
+          body_path: release_notes.md
+          draft:     false
+          prerelease: false
+          # Tag the current HEAD (the commit that bumped the version).
+          target_commitish: ${{ github.sha }}
