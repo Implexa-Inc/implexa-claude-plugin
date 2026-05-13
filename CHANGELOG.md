@@ -12,6 +12,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.2.0] — 2026-05-13
+
+Ships the **host-side capture hooks** referenced in 0.1.0 but never installed.
+This is the unlock for capturing skills that use non-Implexa tools (computer-use,
+Claude_in_Chrome, WebFetch, Bash, Read, Write, native MCP servers) inside a
+demonstration. Without these hooks, only Implexa MCP tool calls were
+auto-logged and everything else relied on Claude calling `record_demo_note`
+manually — brittle and incomplete.
+
+### Added
+- `hooks/hooks.json` — registers three hooks via the standard plugin schema:
+  - `UserPromptSubmit` → POST `/api/v2/mcp/demo-turn` (role=user)
+  - `Stop` → POST `/api/v2/mcp/demo-turn` (role=assistant)
+  - `PostToolUse` → POST `/api/v2/mcp/demo-tool-call`
+- `hooks/implexa-event.sh` — bash dispatcher. Reads stdin JSON, picks the
+  right endpoint, POSTs with `IMPLEXA_API_KEY`. Fire-and-forget (3s timeout,
+  silent on failure) so a slow/offline backend never blocks Claude.
+
+### Privacy
+- Hooks ONLY forward data when an active demo session exists in the user's
+  Implexa org. Backend silently drops events when no recording is in
+  progress — installing the plugin ≠ always-on surveillance.
+
+### Requires
+- `core.implexa.ai` running v0.1.x with `POST /api/v2/mcp/demo-tool-call`
+  endpoint (companion commit in implexa-backend).
+- User has `IMPLEXA_API_KEY` set in their shell env.
+
 ## [0.1.0] — 2026-05-12
 
 Initial release. Forked from Revenoid's Skill Graph layer (revenoid-claude-plugin@v0.1.3) and rebranded as a standalone product focused exclusively on workflow capture + sharing.
