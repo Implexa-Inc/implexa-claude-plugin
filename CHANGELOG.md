@@ -12,6 +12,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.2.1] — 2026-05-13
+
+Bug fixes to the v0.2.0 host hooks based on a re-read of the official
+Claude Code hooks documentation (https://code.claude.com/docs/en/hooks).
+The 0.2.0 hooks fired but the captures were degraded due to schema
+mismatches with what Claude Code actually sends.
+
+### Fixed
+- **PostToolUse hook was reading wrong field names.** Claude Code's
+  payload uses `tool_input` and `tool_response` — the 0.2.0 hook was
+  reading `tool_args` and `tool_result`. Result: tool calls were
+  logged as "Bash tool was used" with empty args + empty response.
+  Now correctly reads the documented fields.
+- **Event name now read from stdin payload's `hook_event_name` field**
+  instead of from `$1`. Per docs, Claude Code does NOT pass the event
+  name as a command-line argument — only via the JSON payload. The
+  0.2.0 hooks.json passed `UserPromptSubmit` etc. as command args,
+  which technically worked via shell tokenization but was fragile.
+- **Stop hook now reads `transcript_path` to extract the last assistant
+  message.** The 0.2.0 hook guessed at field names (`.response`,
+  `.assistant_response`) that aren't in the documented schema. Now
+  reads the JSONL transcript file and pulls the last `role=assistant`
+  message. Falls back to a marker if transcript isn't accessible.
+
+### Result
+Captured skills should now include verbatim user prompts, full Claude
+responses, and complete tool arguments + responses. Trace richness
+should jump dramatically vs. v0.2.0.
+
+### Migration
+No backend changes required. Plugin only — run `claude plugin update`
+or wipe `~/.claude/plugins/cache/implexa/` and re-install.
+
 ## [0.2.0] — 2026-05-13
 
 Ships the **host-side capture hooks** referenced in 0.1.0 but never installed.
