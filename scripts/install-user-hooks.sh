@@ -136,6 +136,26 @@ EOF
 chmod 600 "$CONFIG"
 ok "Wrote config: $CONFIG (chmod 600 — only you can read it)"
 
+# ─── 6b. Set launchctl env for Claude Desktop's MCP server ─────────────
+# Background: Claude Desktop spawns MCP servers using the plugin's .mcp.json,
+# which references "${IMPLEXA_API_KEY}". macOS GUI apps inherit env from
+# launchctl, NOT from ~/.zshrc. So we set the key in launchctl so the
+# Desktop process can pass it through to the MCP server child process.
+#
+# This is separate from the hooks (which read from ~/.claude/implexa.env).
+# Both are needed:
+#   - hooks (this file)         → capture turns + tool calls into a demo
+#   - MCP server (launchctl)    → start_demonstration / end_demonstration tools
+#
+# launchctl setenv persists until reboot. For permanent persistence we'd
+# need a LaunchAgent plist — for now, re-run this script after a reboot.
+if [[ "$OSTYPE" == "darwin"* ]] && command -v launchctl >/dev/null 2>&1; then
+  launchctl setenv IMPLEXA_API_KEY "$API_KEY"
+  launchctl setenv IMPLEXA_API_URL "https://core.implexa.ai"
+  ok "Set IMPLEXA_API_KEY in launchctl env (Claude Desktop MCP server)"
+  echo "    Note: launchctl env persists until reboot. Re-run this script if you reboot."
+fi
+
 # ─── 7. Write launcher script ──────────────────────────────────────────
 cat > "$LAUNCHER" << 'EOF'
 #!/usr/bin/env bash
@@ -264,11 +284,16 @@ echo "${C_BOLD}${C_GREEN}🎉 Setup complete.${C_RESET}"
 echo ""
 echo "${C_BOLD}Next steps:${C_RESET}"
 echo "  1. ${C_BOLD}Fully quit Claude${C_RESET} (Cmd+Q on Mac — not just close the window)"
+echo "     This is REQUIRED — Claude must re-read its env vars on launch."
 echo "  2. Relaunch Claude"
-echo "  3. Run ${C_BOLD}/implexa:record-skill${C_RESET} to test capture"
+echo "  3. (Optional sanity check) Run ${C_BOLD}/implexa:setup${C_RESET}"
+echo "     This pings the MCP server and confirms it's connected with your key."
+echo "  4. Run ${C_BOLD}/implexa:record-skill${C_RESET} to test capture"
 echo ""
 echo "Verify the capture worked: visit app.implexa.ai/skills/<your-skill-slug>/raw-capture"
-echo "If conversationTurns > 0, hooks are firing — the killer feature is live."
+echo "Both signals should be non-zero:"
+echo "  - toolCallsCount > 0           (PostToolUse hook fired)"
+echo "  - conversationTurns >= 2       (UserPromptSubmit + Stop hooks fired)"
 echo ""
 echo "Settings backup saved at: $BACKUP"
 echo "(In case you ever need to restore: cp $BACKUP $SETTINGS)"
