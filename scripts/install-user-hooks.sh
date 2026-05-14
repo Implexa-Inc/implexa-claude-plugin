@@ -111,7 +111,9 @@ if ! command -v jq >/dev/null 2>&1; then
   warn "jq is required but not installed."
   if ensure_brew; then
     info "Installing jq via Homebrew..."
-    brew install jq
+    # </dev/null is CRITICAL — `brew install` slurps stdin and would
+    # consume the rest of our script (stdin = curl pipe under `curl|bash`).
+    brew install jq </dev/null
     ok "jq installed"
   else
     err "Cannot install jq without Homebrew. See message above."
@@ -136,7 +138,11 @@ if ! command -v npx >/dev/null 2>&1; then
   warn "Node.js / npx is required for the Implexa MCP server but not installed."
   if ensure_brew; then
     info "Installing Node.js via Homebrew (~30s)..."
-    brew install node
+    # </dev/null is CRITICAL — `brew install` slurps stdin and would
+    # consume the rest of our script (stdin = curl pipe under `curl|bash`).
+    # Without this, the script terminates silently after Node.js install
+    # because bash runs out of script to read.
+    brew install node </dev/null
     ok "Node.js installed at $(command -v node)"
   else
     err "Cannot install Node.js without Homebrew."
