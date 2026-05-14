@@ -25,15 +25,39 @@ set -e
 API_KEY="${IMPLEXA_API_KEY:-}"
 API_URL="${IMPLEXA_API_URL:-https://core.implexa.ai}"
 
+# Opt-in invocation logging — set IMPLEXA_HOOK_DEBUG=1 to write a one-line
+# JSON record to ~/.claude/implexa-hook.log on every hook invocation. Helps
+# diagnose "is this event even firing?" without interfering with normal flow.
+# Logged BEFORE the API key check so users with debug on can see all events.
+hook_log() {
+  if [ "${IMPLEXA_HOOK_DEBUG:-}" = "1" ]; then
+    local logfile="$HOME/.claude/implexa-hook.log"
+    mkdir -p "$(dirname "$logfile")" 2>/dev/null || true
+    printf '{"ts":"%s","stage":"%s","event":"%s","payload_size":%d,"has_key":%s}\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "${2:-}" "${3:-0}" "${4:-false}" \
+      >> "$logfile" 2>/dev/null || true
+  fi
+}
+
+hook_log "invoked" "" 0 "$([ -n "$API_KEY" ] && echo true || echo false)"
+
 # Drop if no API key — user hasn't installed/configured Implexa yet.
-if [ -z "$API_KEY" ]; then exit 0; fi
+if [ -z "$API_KEY" ]; then
+  hook_log "no_key_exit" "" 0 false
+  exit 0
+fi
 
 # Read stdin JSON payload (Claude Code sends event details this way).
 PAYLOAD=$(cat -)
-if [ -z "$PAYLOAD" ]; then exit 0; fi
+if [ -z "$PAYLOAD" ]; then
+  hook_log "empty_stdin" "" 0 true
+  exit 0
+fi
 
 # Read the event name from the payload itself, per Claude Code docs.
 EVENT_NAME=$(jq -r '.hook_event_name // empty' <<< "$PAYLOAD" 2>/dev/null)
+hook_log "parsed" "$EVENT_NAME" "${#PAYLOAD}" true
+
 if [ -z "$EVENT_NAME" ]; then exit 0; fi
 
 # Pick the right endpoint + body shape per event.
@@ -51,8 +75,14 @@ case "$EVENT_NAME" in
     TRANSCRIPT=$(jq -r '.transcript_path // empty' <<< "$PAYLOAD" 2>/dev/null)
     LAST_RESPONSE=""
     if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
-      # Find the last line with role=assistant; truncate to 8KB to keep body sane.
-      LAST_RESPONSE=$(tac "$TRANSCRIPT" 2>/dev/null | grep -m 1 '"role":"assistant"' \
+      # Find the last line with role=assistant; truncate to 8KB. macOS ships
+      # `tail -r` instead of GNU `tac` — pick whichever's available.
+      if command -v tac >/dev/null 2>&1; then
+        REVERSE_CMD=(tac)
+      else
+        REVERSE_CMD=(tail -r)
+      fi
+      LAST_RESPONSE=$("${REVERSE_CMD[@]}" "$TRANSCRIPT" 2>/dev/null | grep -m 1 '"role":"assistant"' \
         | jq -r '(.content // .message.content // .text // "") | if type == "array" then (map(.text // .) | join("\n")) else . end' 2>/dev/null \
         | head -c 8192 || echo "")
     fi
@@ -79,13 +109,26 @@ case "$EVENT_NAME" in
     ;;
 esac
 
-if [ -z "$BODY" ]; then exit 0; fi
+if [ -z "$BODY" ]; then
+  hook_log "empty_body" "$EVENT_NAME" "${#PAYLOAD}" true
+  exit 0
+fi
 
 # Fire-and-forget POST. 3s timeout so slow/offline backend never blocks Claude.
-curl --silent --max-time 3 --output /dev/null \
-  -X POST "${API_URL}${ENDPOINT}" \
-  -H "Authorization: Bearer ${API_KEY}" \
-  -H "Content-Type: application/json" \
-  -d "$BODY" 2>/dev/null || true
+# In debug mode, capture the HTTP status code for diagnostics.
+if [ "${IMPLEXA_HOOK_DEBUG:-}" = "1" ]; then
+  HTTP_CODE=$(curl --silent --max-time 3 -o /dev/null -w "%{http_code}" \
+    -X POST "${API_URL}${ENDPOINT}" \
+    -H "Authorization: Bearer ${API_KEY}" \
+    -H "Content-Type: application/json" \
+    -d "$BODY" 2>/dev/null || echo "000")
+  hook_log "posted_${HTTP_CODE}" "$EVENT_NAME" "${#BODY}" true
+else
+  curl --silent --max-time 3 --output /dev/null \
+    -X POST "${API_URL}${ENDPOINT}" \
+    -H "Authorization: Bearer ${API_KEY}" \
+    -H "Content-Type: application/json" \
+    -d "$BODY" 2>/dev/null || true
+fi
 
 exit 0
