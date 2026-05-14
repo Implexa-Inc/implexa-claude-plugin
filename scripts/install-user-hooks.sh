@@ -84,6 +84,28 @@ fi
 # triggers an Xcode Command Line Tools install dialog on first invocation.
 # Switched to jq for the patch step instead (already a hard dependency above).
 
+# ─── 3b. Check Node.js / npx (REQUIRED for MCP server) ─────────────────
+# The plugin's MCP server runs via `npx -y @implexa/mcp-server`. Without
+# Node.js installed, Cowork/Desktop will spawn the server, fail with
+# "command not found: npx", and show "MCP server disconnected" — which
+# we discovered the hard way during Sanna's fresh-Mac test.
+if ! command -v npx >/dev/null 2>&1; then
+  warn "Node.js / npx is required for the Implexa MCP server but not installed."
+  if command -v brew >/dev/null 2>&1; then
+    info "Installing Node.js via Homebrew (~30s)..."
+    brew install node
+    ok "Node.js installed at $(command -v node)"
+  else
+    err "Homebrew not found. Install Node.js manually:"
+    echo "    https://nodejs.org/ (download the LTS installer)"
+    echo "  Or install Homebrew first: https://brew.sh"
+    echo "  Then re-run this script."
+    exit 1
+  fi
+else
+  ok "Node.js / npx found at $(command -v npx)"
+fi
+
 # ─── 4. Get the API key (env or prompt) ────────────────────────────────
 # CRITICAL: when this script is run via `curl ... | bash`, stdin IS the
 # script source. A naive `read -r API_KEY` would steal the next line of
