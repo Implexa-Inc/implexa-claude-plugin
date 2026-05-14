@@ -142,9 +142,14 @@ cat > "$LAUNCHER" << 'EOF'
 # Implexa hook launcher.
 #
 # Stable entry point referenced from ~/.claude/settings.json. Resolves the
-# currently-installed plugin version dynamically so it survives plugin
-# updates. Sources implexa.env so env vars are available even when Claude
-# is launched from Finder (GUI env vs shell env).
+# plugin's hook handler dynamically so it survives plugin updates. Sources
+# implexa.env so env vars are available even when Claude is launched from
+# Finder (GUI env vs shell env).
+#
+# Two plugin install locations exist — Claude Code CLI uses ~/.claude/...
+# while Claude Desktop uses ~/Library/Application Support/Claude/local-
+# agent-mode-sessions/*/*/rpm/plugin_*/ (different per session, opaque
+# IDs). We search both, preferring whichever has a newer mtime.
 
 # Add Homebrew bin paths — Claude Desktop's GUI process has a minimal PATH.
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
@@ -156,12 +161,19 @@ if [ -z "${IMPLEXA_API_KEY:-}" ] && [ -f "$HOME/.claude/implexa.env" ]; then
   set +a
 fi
 
-# Find the currently-installed plugin's hook script.
-PLUGIN_DIR=$(ls -td "$HOME/.claude/plugins/cache/implexa/implexa/"*/ 2>/dev/null | head -n 1)
-if [ -z "$PLUGIN_DIR" ]; then exit 0; fi
+# Find the plugin's hook handler. Both globs are silently empty when their
+# install location doesn't exist. ls -t sorts by mtime descending — most
+# recent install wins.
+PLUGIN_HOOK=$(
+  {
+    ls -t "$HOME/.claude/plugins/cache/implexa/implexa/"*/hooks/implexa-event.sh 2>/dev/null
+    ls -t "$HOME/Library/Application Support/Claude/local-agent-mode-sessions/"*/*/rpm/plugin_*/hooks/implexa-event.sh 2>/dev/null
+  } | head -n 1
+)
+if [ -z "$PLUGIN_HOOK" ] || [ ! -x "$PLUGIN_HOOK" ]; then exit 0; fi
 
 # Forward the stdin payload + event to the plugin's hook handler.
-exec "$PLUGIN_DIR/hooks/implexa-event.sh"
+exec "$PLUGIN_HOOK"
 EOF
 chmod +x "$LAUNCHER"
 ok "Wrote launcher: $LAUNCHER"
@@ -207,19 +219,30 @@ echo ""
 info "Running smoke test (simulates Claude Desktop's clean GUI environment)..."
 
 # First — check the plugin is actually findable. The launcher silently exits 0
-# when PLUGIN_DIR is empty, so without this check the smoke test would
-# falsely pass for users who never completed Step 2 of the install.
-PLUGIN_DIR=$(ls -td "$HOME/.claude/plugins/cache/implexa/implexa/"*/ 2>/dev/null | head -n 1)
-if [ -z "$PLUGIN_DIR" ]; then
-  warn "Plugin not found at $HOME/.claude/plugins/cache/implexa/implexa/"
-  echo "    The hooks are now installed and will be ready as soon as the plugin is."
+# when its glob is empty, so without this check the smoke test would falsely
+# pass for users who never completed Step 2 of the install.
+#
+# Two install locations: CLI (~/.claude/plugins/cache/...) and Desktop
+# (~/Library/Application Support/Claude/local-agent-mode-sessions/...).
+PLUGIN_HOOK=$(
+  {
+    ls -t "$HOME/.claude/plugins/cache/implexa/implexa/"*/hooks/implexa-event.sh 2>/dev/null
+    ls -t "$HOME/Library/Application Support/Claude/local-agent-mode-sessions/"*/*/rpm/plugin_*/hooks/implexa-event.sh 2>/dev/null
+  } | head -n 1
+)
+if [ -z "$PLUGIN_HOOK" ]; then
+  warn "Implexa plugin not found in either install location:"
+  echo "    - $HOME/.claude/plugins/cache/implexa/implexa/  (Claude Code CLI)"
+  echo "    - $HOME/Library/Application Support/Claude/local-agent-mode-sessions/.../rpm/plugin_.../  (Claude Desktop)"
+  echo ""
+  echo "    The user-level hooks are now installed and will activate as soon as the plugin is."
   echo "    If you've already installed the Implexa plugin in Claude Desktop"
-  echo "    (Customize → Personal plugins → Add marketplace) but still see this,"
+  echo "    (Customize → Personal plugins → Add marketplace → Install) but still see this,"
   echo "    please report it: https://github.com/Implexa-Inc/implexa-claude-plugin/issues"
   echo ""
   info "Skipping the launcher exec test (no plugin to forward to yet)."
 else
-  ok "Plugin found at $PLUGIN_DIR"
+  ok "Plugin found at $PLUGIN_HOOK"
   SMOKE_PAYLOAD='{"hook_event_name":"UserPromptSubmit","prompt":"installer smoke test","session_id":"installer","transcript_path":"/tmp/nope","cwd":"/tmp"}'
   if env -i HOME="$HOME" PATH="/usr/bin:/bin" \
        bash -c "echo '$SMOKE_PAYLOAD' | '$LAUNCHER'" >/dev/null 2>&1; then
@@ -229,7 +252,7 @@ else
     echo "Diagnostic info:"
     echo "  - jq location:        $(command -v jq || echo 'NOT FOUND')"
     echo "  - launcher exists:    $([ -x "$LAUNCHER" ] && echo 'yes' || echo 'NO')"
-    echo "  - plugin location:    $PLUGIN_DIR"
+    echo "  - plugin location:    $PLUGIN_HOOK"
     echo "  - config exists:      $([ -r "$CONFIG" ] && echo 'yes' || echo 'NO')"
     exit 1
   fi
