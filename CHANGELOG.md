@@ -12,6 +12,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.3.0] — 2026-05-13
+
+Ships the one-command setup automation that bridges plugin-level hooks
+(which work in CLI but get sandboxed in Cowork) to user-level hooks
+(which fire on every surface).
+
+### Added
+- `scripts/install-user-hooks.sh` — bash installer that:
+  - Checks for jq, installs via Homebrew if missing
+  - Reads `IMPLEXA_API_KEY` from env or prompts the user
+  - Writes the launcher at `~/.claude/implexa-hook.sh` (with PATH fix
+    + config-file sourcing so GUI-launched Claude can find the API key)
+  - Writes config at `~/.claude/implexa.env` (chmod 600)
+  - Patches `~/.claude/settings.json` to register hooks for
+    UserPromptSubmit, Stop, PostToolUse — idempotent, safe to re-run
+  - Backs up the existing settings.json before any change
+  - Runs a clean-env smoke test that simulates Claude Desktop's GUI
+    environment to catch issues before the user hits them at runtime
+- `skills/setup-hooks/SKILL.md` — new `/implexa:setup-hooks` slash
+  command. Tells the user to run the installer in their terminal,
+  explains what it does, answers common questions (curl-pipe-bash
+  security, idempotency, Windows support, etc.).
+
+### Run with
+```bash
+curl -sL https://raw.githubusercontent.com/Implexa-Inc/implexa-claude-plugin/main/scripts/install-user-hooks.sh | bash
+```
+
+### Why this exists
+The v0.2.x hooks in `hooks/hooks.json` fire in Claude Code CLI but
+Claude Desktop / Cowork silently drop plugin-packaged hooks
+(documented Cowork sandbox behavior — `--setting-sources user` flag).
+v0.3.0 installs the same hook script at the user level via the
+documented `~/.claude/settings.json` path, which IS honored on every
+surface. The net effect: `conversationTurns > 0` + `toolCallsCount > 0`
+in captured demos regardless of where Claude is running.
+
+### Migration
+- v0.2.x users: run the installer once. Subsequent plugin updates
+  don't need re-running (the launcher resolves the plugin version
+  dynamically).
+- Fresh users: plugin install → installer → restart Claude. Three
+  steps documented on app.implexa.ai/install.
+
 ## [0.2.1] — 2026-05-13
 
 Bug fixes to the v0.2.0 host hooks based on a re-read of the official
