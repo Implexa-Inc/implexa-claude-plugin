@@ -30,29 +30,36 @@ CONFIG="$CLAUDE_DIR/implexa.env"
 SETTINGS="$CLAUDE_DIR/settings.json"
 BACKUP="$SETTINGS.implexa-backup-$(date +%s)"
 
-# Color helpers — readable on most terminals
+# Color helpers — use ANSI-C quoting ($'...') so the variables contain the
+# actual ESC character, not the literal string "\033". This makes them work
+# correctly with both `echo` and `printf` regardless of shell echo flavor.
 if [ -t 1 ]; then
-  C_GREEN='\033[0;32m'; C_RED='\033[0;31m'; C_YELLOW='\033[0;33m'; C_BLUE='\033[0;34m'; C_BOLD='\033[1m'; C_RESET='\033[0m'
+  C_GREEN=$'\033[0;32m'; C_RED=$'\033[0;31m'; C_YELLOW=$'\033[0;33m'; C_BLUE=$'\033[0;34m'; C_BOLD=$'\033[1m'; C_RESET=$'\033[0m'
 else
   C_GREEN=''; C_RED=''; C_YELLOW=''; C_BLUE=''; C_BOLD=''; C_RESET=''
 fi
 
-ok()   { printf "${C_GREEN}✓${C_RESET} %s\n"  "$*"; }
-warn() { printf "${C_YELLOW}⚠${C_RESET} %s\n" "$*"; }
-err()  { printf "${C_RED}✗${C_RESET} %s\n"    "$*" >&2; }
-info() { printf "${C_BLUE}→${C_RESET} %s\n"   "$*"; }
+ok()   { printf "%s✓%s %s\n" "$C_GREEN"  "$C_RESET" "$*"; }
+warn() { printf "%s⚠%s %s\n" "$C_YELLOW" "$C_RESET" "$*"; }
+err()  { printf "%s✗%s %s\n" "$C_RED"    "$C_RESET" "$*" >&2; }
+info() { printf "%s→%s %s\n" "$C_BLUE"   "$C_RESET" "$*"; }
 
 echo ""
 echo "${C_BOLD}🔧 Implexa user-hooks installer${C_RESET}"
 echo ""
 
-# ─── 1. Sanity check: ~/.claude exists ─────────────────────────────────
+# ─── 1. Ensure ~/.claude exists ────────────────────────────────────────
+# Both Claude Code CLI and Claude Desktop read user-level config from
+# ~/.claude/settings.json, but neither necessarily CREATES the directory
+# on first run (Desktop tends to put its own Electron state under
+# ~/Library/Application Support/Claude/). Just mkdir -p it — that's the
+# whole point of this script.
 if [ ! -d "$CLAUDE_DIR" ]; then
-  err "$CLAUDE_DIR not found. Install Claude Code first:"
-  echo "    https://docs.anthropic.com/claude/docs/claude-code"
-  exit 1
+  mkdir -p "$CLAUDE_DIR"
+  ok "Created Claude config directory at $CLAUDE_DIR"
+else
+  ok "Claude config directory found at $CLAUDE_DIR"
 fi
-ok "Claude config directory found at $CLAUDE_DIR"
 
 # ─── 2. Check jq ────────────────────────────────────────────────────────
 if ! command -v jq >/dev/null 2>&1; then
@@ -189,22 +196,34 @@ ok "settings.json patched"
 # ─── 9. Smoke test ─────────────────────────────────────────────────────
 echo ""
 info "Running smoke test (simulates Claude Desktop's clean GUI environment)..."
-SMOKE_PAYLOAD='{"hook_event_name":"UserPromptSubmit","prompt":"installer smoke test","session_id":"installer","transcript_path":"/tmp/nope","cwd":"/tmp"}'
-if env -i HOME="$HOME" PATH="/usr/bin:/bin" \
-     bash -c "echo '$SMOKE_PAYLOAD' | '$LAUNCHER'" >/dev/null 2>&1; then
-  ok "Smoke test passed — launcher runs cleanly in GUI-like environment"
-else
-  err "Smoke test failed."
-  echo "Diagnostic info:"
-  echo "  - jq location:        $(command -v jq || echo 'NOT FOUND')"
-  echo "  - launcher exists:    $([ -x "$LAUNCHER" ] && echo 'yes' || echo 'NO')"
-  echo "  - plugin installed:   $(ls -d "$HOME/.claude/plugins/cache/implexa/implexa/"*/ 2>/dev/null | head -1 || echo 'NO')"
-  echo "  - config exists:      $([ -r "$CONFIG" ] && echo 'yes' || echo 'NO')"
+
+# First — check the plugin is actually findable. The launcher silently exits 0
+# when PLUGIN_DIR is empty, so without this check the smoke test would
+# falsely pass for users who never completed Step 2 of the install.
+PLUGIN_DIR=$(ls -td "$HOME/.claude/plugins/cache/implexa/implexa/"*/ 2>/dev/null | head -n 1)
+if [ -z "$PLUGIN_DIR" ]; then
+  warn "Plugin not found at $HOME/.claude/plugins/cache/implexa/implexa/"
+  echo "    The hooks are now installed and will be ready as soon as the plugin is."
+  echo "    If you've already installed the Implexa plugin in Claude Desktop"
+  echo "    (Customize → Personal plugins → Add marketplace) but still see this,"
+  echo "    please report it: https://github.com/Implexa-Inc/implexa-claude-plugin/issues"
   echo ""
-  echo "If the plugin isn't installed yet, install it first:"
-  echo "  /plugin marketplace add https://github.com/Implexa-Inc/implexa-claude-plugin.git"
-  echo "  /plugin install implexa@implexa"
-  exit 1
+  info "Skipping the launcher exec test (no plugin to forward to yet)."
+else
+  ok "Plugin found at $PLUGIN_DIR"
+  SMOKE_PAYLOAD='{"hook_event_name":"UserPromptSubmit","prompt":"installer smoke test","session_id":"installer","transcript_path":"/tmp/nope","cwd":"/tmp"}'
+  if env -i HOME="$HOME" PATH="/usr/bin:/bin" \
+       bash -c "echo '$SMOKE_PAYLOAD' | '$LAUNCHER'" >/dev/null 2>&1; then
+    ok "Smoke test passed — launcher runs cleanly in GUI-like environment"
+  else
+    err "Smoke test failed."
+    echo "Diagnostic info:"
+    echo "  - jq location:        $(command -v jq || echo 'NOT FOUND')"
+    echo "  - launcher exists:    $([ -x "$LAUNCHER" ] && echo 'yes' || echo 'NO')"
+    echo "  - plugin location:    $PLUGIN_DIR"
+    echo "  - config exists:      $([ -r "$CONFIG" ] && echo 'yes' || echo 'NO')"
+    exit 1
+  fi
 fi
 
 # ─── 10. Done ───────────────────────────────────────────────────────────
