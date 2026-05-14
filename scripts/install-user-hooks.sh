@@ -308,11 +308,19 @@ cat > "$LAUNCHER" << 'EOF'
 # Add Homebrew bin paths — Claude Desktop's GUI process has a minimal PATH.
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
-# Source the config file if shell env didn't provide IMPLEXA_API_KEY.
-if [ -z "${IMPLEXA_API_KEY:-}" ] && [ -f "$HOME/.claude/implexa.env" ]; then
+# Source implexa.env unconditionally so debug flags / API URL / etc.
+# propagate even when IMPLEXA_API_KEY is already in the GUI process env
+# (set via launchctl). Save the pre-existing key first so a shell-set
+# value takes precedence — important for CLI users who export it in
+# their .zshrc with a different/newer value than what's in the file.
+if [ -f "$HOME/.claude/implexa.env" ]; then
+  _saved_key="${IMPLEXA_API_KEY:-}"
   set -a
   source "$HOME/.claude/implexa.env"
   set +a
+  if [ -n "$_saved_key" ]; then
+    export IMPLEXA_API_KEY="$_saved_key"
+  fi
 fi
 
 # Find the plugin's hook handler. Both globs are silently empty when their
