@@ -24,6 +24,17 @@
 
 set -e
 
+# If Homebrew is installed but not on PATH (common right after first install
+# before the user has restarted their shell), proactively add it. Otherwise
+# subsequent `command -v npx` etc. checks falsely report things as missing.
+if ! command -v brew >/dev/null 2>&1; then
+  if [ -x /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  elif [ -x /usr/local/bin/brew ]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+  fi
+fi
+
 CLAUDE_DIR="$HOME/.claude"
 LAUNCHER="$CLAUDE_DIR/implexa-hook.sh"
 CONFIG="$CLAUDE_DIR/implexa.env"
@@ -49,6 +60,25 @@ info() { printf "%s→%s %s\n" "$C_BLUE"   "$C_RESET" "$*"; }
 # Idempotent — safe to call from multiple dependency checks.
 ensure_brew() {
   if command -v brew >/dev/null 2>&1; then return 0; fi
+
+  # Brew might already be installed but not in PATH (very common after a
+  # first install — the Homebrew installer prints instructions for adding
+  # to .zprofile but doesn't apply them to the current shell). Check the
+  # two standard install locations and add to PATH if found.
+  if [ -x /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+    if command -v brew >/dev/null 2>&1; then
+      ok "Homebrew found at /opt/homebrew/bin/brew (added to PATH for this run)"
+      return 0
+    fi
+  fi
+  if [ -x /usr/local/bin/brew ]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+    if command -v brew >/dev/null 2>&1; then
+      ok "Homebrew found at /usr/local/bin/brew (added to PATH for this run)"
+      return 0
+    fi
+  fi
 
   warn "Homebrew is required to install missing dependencies."
   echo "    Homebrew is the standard macOS package manager. It's used to install"
