@@ -87,13 +87,25 @@ fi
 ok "python3 found"
 
 # ─── 4. Get the API key (env or prompt) ────────────────────────────────
+# CRITICAL: when this script is run via `curl ... | bash`, stdin IS the
+# script source. A naive `read -r API_KEY` would steal the next line of
+# the script itself instead of reading from the keyboard, breaking the
+# parse with cryptic syntax errors later. Always read from /dev/tty so
+# we get keyboard input regardless of how the script was invoked.
 API_KEY="${IMPLEXA_API_KEY:-}"
 if [ -z "$API_KEY" ]; then
+  if [ ! -r /dev/tty ]; then
+    err "No API key provided and no terminal available to prompt."
+    err "Either set IMPLEXA_API_KEY first, or download the script and run it directly:"
+    echo "    curl -O https://raw.githubusercontent.com/Implexa-Inc/implexa-claude-plugin/main/scripts/install-user-hooks.sh"
+    echo "    bash install-user-hooks.sh"
+    exit 1
+  fi
   echo ""
   echo "${C_BOLD}Enter your Implexa API key (imp_live_...):${C_RESET}"
   echo "Get one at https://app.implexa.ai/install"
   echo -n "API key: "
-  read -r API_KEY
+  read -r API_KEY < /dev/tty
   echo ""
   if [ -z "$API_KEY" ]; then
     err "No API key provided. Aborting."
