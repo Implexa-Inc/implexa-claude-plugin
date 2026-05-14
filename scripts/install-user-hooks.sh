@@ -78,13 +78,11 @@ else
   ok "jq found at $(command -v jq)"
 fi
 
-# ─── 3. Check Python (for settings.json patching) ──────────────────────
-if ! command -v python3 >/dev/null 2>&1; then
-  err "python3 required but not found. Install Python 3:"
-  echo "    https://www.python.org/downloads/"
-  exit 1
-fi
-ok "python3 found"
+# ─── 3. (was python3 check — removed) ──────────────────────────────────
+# We previously checked for python3 here for settings.json patching, but on
+# fresh Macs /usr/bin/python3 is a SHIM that exists for `command -v` but
+# triggers an Xcode Command Line Tools install dialog on first invocation.
+# Switched to jq for the patch step instead (already a hard dependency above).
 
 # ─── 4. Get the API key (env or prompt) ────────────────────────────────
 # CRITICAL: when this script is run via `curl ... | bash`, stdin IS the
@@ -169,41 +167,40 @@ chmod +x "$LAUNCHER"
 ok "Wrote launcher: $LAUNCHER"
 
 # ─── 8. Patch settings.json (idempotent) ───────────────────────────────
-python3 << PYEOF
-import json, os, sys
-p = os.path.expanduser('$SETTINGS')
-with open(p) as f:
-    s = json.load(f)
-s.setdefault('hooks', {})
-LAUNCHER_CMD = '\$HOME/.claude/implexa-hook.sh'
-added = []
-already = []
-for event in ['UserPromptSubmit', 'Stop', 'PostToolUse']:
-    s['hooks'].setdefault(event, [])
-    # Find or create the matcher='*' group
-    target = None
-    for matcher_group in s['hooks'][event]:
-        if matcher_group.get('matcher') in ('*', ''):
-            target = matcher_group
-            break
-    if target is None:
-        target = {'matcher': '*', 'hooks': []}
-        s['hooks'][event].append(target)
-    target.setdefault('hooks', [])
-    # Add our hook if not already there
-    if not any(h.get('command') == LAUNCHER_CMD for h in target['hooks']):
-        target['hooks'].append({'type': 'command', 'command': LAUNCHER_CMD})
-        added.append(event)
-    else:
-        already.append(event)
-with open(p, 'w') as f:
-    json.dump(s, f, indent=2)
-if added:
-    print('Registered hooks for: ' + ', '.join(added))
-if already:
-    print('Already registered for: ' + ', '.join(already))
-PYEOF
-ok "settings.json patched"
+# Uses jq instead of python3 — fresh Macs lack working python3 (the
+# /usr/bin/python3 shim triggers an Xcode CLT install dialog instead of
+# running), so we'd block on a 5–10 minute compiler-tools install for a
+# trivial JSON edit. jq is already a hard dep above.
+#
+# Logic: for each of the 3 hook events, ensure .hooks[event] is an array
+# containing a matcher="*" group, and that group's hooks contain our
+# launcher command. All operations are idempotent on the second run.
+LAUNCHER_CMD='$HOME/.claude/implexa-hook.sh'
+TMP_SETTINGS="$SETTINGS.tmp.$$"
+if ! jq --arg cmd "$LAUNCHER_CMD" '
+  .hooks = (.hooks // {})
+  | reduce ["UserPromptSubmit", "Stop", "PostToolUse"][] as $event (.;
+      .hooks[$event] = (.hooks[$event] // [])
+      | (if (.hooks[$event] | any(.matcher == "*" or .matcher == "")) then .
+         else .hooks[$event] += [{matcher: "*", hooks: []}]
+         end)
+      | .hooks[$event] |= map(
+          if (.matcher == "*" or .matcher == "") then
+            .hooks = (.hooks // [])
+            | (if (.hooks | any(.command == $cmd)) then .
+               else .hooks += [{type: "command", command: $cmd}]
+               end)
+          else .
+          end
+        )
+    )
+' "$SETTINGS" > "$TMP_SETTINGS"; then
+  err "Failed to patch $SETTINGS via jq. Original is unchanged."
+  rm -f "$TMP_SETTINGS"
+  exit 1
+fi
+mv "$TMP_SETTINGS" "$SETTINGS"
+ok "settings.json patched (3 hook events registered)"
 
 # ─── 9. Smoke test ─────────────────────────────────────────────────────
 echo ""
