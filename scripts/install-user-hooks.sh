@@ -44,6 +44,51 @@ warn() { printf "%s⚠%s %s\n" "$C_YELLOW" "$C_RESET" "$*"; }
 err()  { printf "%s✗%s %s\n" "$C_RED"    "$C_RESET" "$*" >&2; }
 info() { printf "%s→%s %s\n" "$C_BLUE"   "$C_RESET" "$*"; }
 
+# Helper: ensure Homebrew is available; offer to auto-install if missing.
+# Returns 0 on success (brew callable), 1 if user declined or install failed.
+# Idempotent — safe to call from multiple dependency checks.
+ensure_brew() {
+  if command -v brew >/dev/null 2>&1; then return 0; fi
+
+  warn "Homebrew is required to install missing dependencies."
+  echo "    Homebrew is the standard macOS package manager. It's used to install"
+  echo "    Node.js (needed for the Implexa MCP server) and jq if missing."
+  echo "    First-time install: ~5 minutes, will prompt for your Mac password."
+  echo ""
+
+  if [ ! -r /dev/tty ]; then
+    err "No terminal available to prompt. Install Homebrew manually from https://brew.sh"
+    return 1
+  fi
+  echo -n "Install Homebrew now? [Y/n]: "
+  local confirm
+  read -r confirm < /dev/tty
+  if [[ "$confirm" =~ ^[Nn]$ ]]; then
+    err "Aborted. To install Homebrew manually:"
+    echo "    /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+    echo "    Then re-run this script."
+    return 1
+  fi
+
+  info "Installing Homebrew (this will take a few minutes)..."
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" </dev/tty || return 1
+
+  # Add brew to PATH for the rest of this script's execution.
+  if [ -x /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  elif [ -x /usr/local/bin/brew ]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+  fi
+
+  if command -v brew >/dev/null 2>&1; then
+    ok "Homebrew installed at $(command -v brew)"
+    return 0
+  else
+    err "Homebrew install ran but brew is not in PATH. Open a new terminal and re-run."
+    return 1
+  fi
+}
+
 echo ""
 echo "${C_BOLD}🔧 Implexa user-hooks installer${C_RESET}"
 echo ""
@@ -64,14 +109,12 @@ fi
 # ─── 2. Check jq ────────────────────────────────────────────────────────
 if ! command -v jq >/dev/null 2>&1; then
   warn "jq is required but not installed."
-  if command -v brew >/dev/null 2>&1; then
+  if ensure_brew; then
     info "Installing jq via Homebrew..."
     brew install jq
     ok "jq installed"
   else
-    err "Homebrew not found. Install jq manually:"
-    echo "    https://github.com/jqlang/jq"
-    echo "  Or install Homebrew first: https://brew.sh"
+    err "Cannot install jq without Homebrew. See message above."
     exit 1
   fi
 else
@@ -91,15 +134,14 @@ fi
 # we discovered the hard way during Sanna's fresh-Mac test.
 if ! command -v npx >/dev/null 2>&1; then
   warn "Node.js / npx is required for the Implexa MCP server but not installed."
-  if command -v brew >/dev/null 2>&1; then
+  if ensure_brew; then
     info "Installing Node.js via Homebrew (~30s)..."
     brew install node
     ok "Node.js installed at $(command -v node)"
   else
-    err "Homebrew not found. Install Node.js manually:"
-    echo "    https://nodejs.org/ (download the LTS installer)"
-    echo "  Or install Homebrew first: https://brew.sh"
-    echo "  Then re-run this script."
+    err "Cannot install Node.js without Homebrew."
+    echo "    Alternative: download Node.js LTS directly from https://nodejs.org/"
+    echo "    Then re-run this script."
     exit 1
   fi
 else
