@@ -136,24 +136,58 @@ EOF
 chmod 600 "$CONFIG"
 ok "Wrote config: $CONFIG (chmod 600 — only you can read it)"
 
-# ─── 6b. Set launchctl env for Claude Desktop's MCP server ─────────────
-# Background: Claude Desktop spawns MCP servers using the plugin's .mcp.json,
-# which references "${IMPLEXA_API_KEY}". macOS GUI apps inherit env from
-# launchctl, NOT from ~/.zshrc. So we set the key in launchctl so the
-# Desktop process can pass it through to the MCP server child process.
-#
-# This is separate from the hooks (which read from ~/.claude/implexa.env).
-# Both are needed:
-#   - hooks (this file)         → capture turns + tool calls into a demo
-#   - MCP server (launchctl)    → start_demonstration / end_demonstration tools
-#
-# launchctl setenv persists until reboot. For permanent persistence we'd
-# need a LaunchAgent plist — for now, re-run this script after a reboot.
+# ─── 6b. Set launchctl env (helps Claude Code CLI launches) ────────────
+# launchctl env reaches any GUI process Launchd spawns thereafter. Useful
+# for CLI launches and as a belt-and-suspenders measure. But it does NOT
+# reliably reach Claude Desktop/Cowork MCP servers (Anthropic's plugin
+# .mcp.json substitution from process env appears unreliable in Cowork).
+# We patch claude_desktop_config.json explicitly below for that.
 if [[ "$OSTYPE" == "darwin"* ]] && command -v launchctl >/dev/null 2>&1; then
   launchctl setenv IMPLEXA_API_KEY "$API_KEY"
   launchctl setenv IMPLEXA_API_URL "https://core.implexa.ai"
-  ok "Set IMPLEXA_API_KEY in launchctl env (Claude Desktop MCP server)"
-  echo "    Note: launchctl env persists until reboot. Re-run this script if you reboot."
+  ok "Set IMPLEXA_API_KEY in launchctl env"
+fi
+
+# ─── 6c. Patch claude_desktop_config.json (Desktop / Cowork MCP wiring) ─
+# Plugin's .mcp.json declares the implexa MCP server with ${IMPLEXA_API_KEY}
+# substitution, but Anthropic's Cowork doesn't appear to substitute reliably
+# from launchctl env. The reliable path is to register the MCP server in
+# claude_desktop_config.json with HARDCODED env values — same pattern
+# Anthropic's own examples use (and that revenoid-local does).
+#
+# We preserve all other top-level keys (preferences, other mcpServers, etc).
+DESKTOP_CFG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+DESKTOP_CFG_DIR="$(dirname "$DESKTOP_CFG")"
+if [ -d "$DESKTOP_CFG_DIR" ]; then
+  # Ensure the file exists with at least an empty object
+  if [ ! -f "$DESKTOP_CFG" ]; then
+    echo '{}' > "$DESKTOP_CFG"
+  else
+    # Back up — same convention as settings.json
+    cp "$DESKTOP_CFG" "$DESKTOP_CFG.implexa-backup-$(date +%s)"
+  fi
+
+  DESKTOP_TMP="$DESKTOP_CFG.tmp.$$"
+  if ! jq --arg key "$API_KEY" --arg url "https://core.implexa.ai" '
+    .mcpServers = (.mcpServers // {})
+    | .mcpServers.implexa = {
+        command: "npx",
+        args: ["-y", "@implexa/mcp-server"],
+        env: {
+          IMPLEXA_API_KEY: $key,
+          IMPLEXA_API_URL: $url
+        }
+      }
+  ' "$DESKTOP_CFG" > "$DESKTOP_TMP"; then
+    err "Failed to patch $DESKTOP_CFG. Original unchanged."
+    rm -f "$DESKTOP_TMP"
+  else
+    mv "$DESKTOP_TMP" "$DESKTOP_CFG"
+    ok "Registered implexa MCP server in claude_desktop_config.json"
+  fi
+else
+  warn "Claude Desktop config directory not found: $DESKTOP_CFG_DIR"
+  echo "    (skipping Desktop/Cowork MCP wiring — only matters if you use Desktop or Cowork)"
 fi
 
 # ─── 7. Write launcher script ──────────────────────────────────────────
@@ -283,12 +317,15 @@ echo ""
 echo "${C_BOLD}${C_GREEN}🎉 Setup complete.${C_RESET}"
 echo ""
 echo "${C_BOLD}Next steps:${C_RESET}"
-echo "  1. ${C_BOLD}Fully quit Claude${C_RESET} (Cmd+Q on Mac — not just close the window)"
-echo "     This is REQUIRED — Claude must re-read its env vars on launch."
-echo "  2. Relaunch Claude"
-echo "  3. (Optional sanity check) Run ${C_BOLD}/implexa:setup${C_RESET}"
-echo "     This pings the MCP server and confirms it's connected with your key."
-echo "  4. Run ${C_BOLD}/implexa:record-skill${C_RESET} to test capture"
+echo "  1. ${C_BOLD}Fully quit Claude${C_RESET} (Cmd+Q on Mac — closing windows isn't enough)"
+echo "     This is REQUIRED — MCP servers + env vars are read on launch."
+echo "  2. ${C_BOLD}(If plugin updated)${C_RESET} reinstall the plugin: Customize → Personal plugins"
+echo "     → Implexa → remove, then re-add via the marketplace. This pulls"
+echo "     the latest skill text (slash command prompts updated)."
+echo "  3. Relaunch Claude (Desktop, Cowork, or CLI)"
+echo "  4. Run ${C_BOLD}/implexa:setup${C_RESET} to verify MCP connected"
+echo "     You should see: ✅ You're connected to Implexa"
+echo "  5. Run ${C_BOLD}/implexa:record-skill${C_RESET} to test capture"
 echo ""
 echo "Verify the capture worked: visit app.implexa.ai/skills/<your-skill-slug>/raw-capture"
 echo "Both signals should be non-zero:"
