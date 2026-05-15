@@ -1,5 +1,5 @@
 ---
-description: Browse and invoke skills your org has saved in the Skill Graph. Use when the user says "show our skills", "what skills do we have", "what workflows have we saved", "list the team's skills", "show me org skills", "search for a skill", "do we have a skill for X", or wants to find a saved workflow before doing the work themselves. ALSO call list_org_skills BEFORE any complex multi-step workflow you're about to perform — the org may have already saved this exact pattern. Powers the "discovery + reuse" half of the Skill Graph loop.
+description: Browse and invoke skills your org has saved in the Skill Graph — the full team-wide view (private + team-shared + public + base Playbooks). Use when the user says "show our skills", "what skills do we have", "what workflows have we saved", "list the team's skills", "show me org skills", "search for a skill", "do we have a skill for X", or wants to find a saved workflow before doing the work themselves. ALSO call list_org_skills BEFORE any complex multi-step workflow you're about to perform — the org may have already saved this exact pattern. NOTE — if the user asks for "MY skills" specifically (their personal library, not the team view), use /implexa:my-skills instead. Powers the "discovery + reuse" half of the Skill Graph loop.
 ---
 
 # Browse and apply org skills
@@ -48,6 +48,7 @@ When the skill finishes, mention briefly: *"This was the Nth time someone in you
 
 ## What's next?
 
+- `Show just my own skills` (uses /implexa:my-skills)
 - `Save this workflow as a skill so others can use it`
 - `Show skill ROI to see which skills are driving outcomes`
 - `Apply a different skill from the list`

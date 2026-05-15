@@ -12,6 +12,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.4.0] — 2026-05-14
+
+Adds the personal-library lens. Users were getting `org-skills` overflowing
+with team-shared + base Playbooks + public skills and asked for a way to see
+just their own captured work. Now there are two clear commands:
+
+- `/implexa:my-skills` (NEW) — only skills the caller authored (private +
+  team-shared + public if you made them, but excluding base Playbooks).
+  Scope-tagged 🔒/👥/🌍 so the user sees how each is shared at a glance.
+- `/implexa:org-skills` — UNCHANGED behavior. The full team-wide view
+  (private + org-shared + universal + system Playbooks). Description
+  updated to cross-reference `/implexa:my-skills` for the personal lens.
+
+Backend: `list_org_skills` MCP tool gains a `createdByMe: boolean` filter
+param (default false). Service-level filter excludes system-scope skills
+when `createdByMe: true` — the user didn't author base Playbooks.
+
+### Added
+- `/implexa:my-skills` slash command (skills/my-skills/SKILL.md)
+- `list_org_skills` MCP tool: new `createdByMe` boolean filter param
+
+### Changed
+- `/implexa:org-skills` description now disambiguates: "if user asks for
+  MY skills specifically, use /implexa:my-skills instead"
+
 ## [0.3.0] — 2026-05-13
 
 Ships the one-command setup automation that bridges plugin-level hooks

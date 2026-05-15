@@ -31,8 +31,9 @@ The core action. Demonstrate a workflow once, get a structured skill back.
 
 ## 📂 Browse + invoke saved skills
 
-- `Show me my org's skills` → calls `/implexa:org-skills`
-- `What skills have I saved?`
+- `Show me my skills` → calls `/implexa:my-skills` (your personal library)
+- `Show me my org's skills` → calls `/implexa:org-skills` (team-wide view)
+- `What skills have I saved?` → calls `/implexa:my-skills`
 - `Browse the Implexa Playbooks` → calls `/implexa:playbooks`
 - `Run my "daily-brief" skill` → fires `apply_org_skill` with that slug
 - `What workflows has my team built?`
@@ -106,7 +107,8 @@ Post-hoc capture (no demo flow required).
 |---|---|
 | `/implexa:record-skill` | Start a demonstration recording → save as structured skill |
 | `/implexa:save-this` | Post-hoc capture of current session |
-| `/implexa:org-skills` | Browse + invoke your org's saved skills |
+| `/implexa:my-skills` | Browse + invoke skills YOU authored (personal library) |
+| `/implexa:org-skills` | Browse + invoke your org's full skill library (everyone's) |
 | `/implexa:playbooks` | Browse the horizontal Playbook library |
 | `/implexa:fork <slug>` | Clone a skill into your org for customization |
 | `/implexa:share-this` | Generate a share link (team-gated or public) |
