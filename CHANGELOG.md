@@ -12,6 +12,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.5.0] — 2026-05-15
+
+Adds the explicit "use a skill" entry point. Before this release, skill
+reuse depended on Claude routing the user's request ("use my triage
+skill") to `apply_org_skill` via natural-language matching. That was
+brittle — the model often dropped straight into the underlying tools
+(Atlassian, Slack, etc.) instead of recognizing the user wanted to
+REUSE a saved skill. Real launch-testing surfaced the gap: "Use my
+triage skill" went straight to Atlassian; "Use my Implexa skill for
+triage" worked.
+
+The fix: a dedicated `/implexa:run` command that's unambiguous —
+fuzzy-matches the user's query against their library and auto-applies
+the best match. If no query is given, renders a numbered list and
+awaits selection. Powers what's projected to be the most-used surface
+(skill reuse compounds over time).
+
+### Added
+- `/implexa:run` slash command (skills/run/SKILL.md):
+  - Query mode: "use my triage skill" → fuzzy-match in user's library →
+    auto-apply (with `createdByMe: true` first, falling back to org-wide)
+  - Browse mode: bare `/implexa:run` → numbered list with scope icons
+    (🔒 / 👥 / 🌍) → user picks by number or "the X one"
+  - Passes any contextual entities (account name, ticket ID, etc.) as
+    `invocationArgs` for outcome attribution
+
+### Changed
+- `/implexa:my-skills` and `/implexa:org-skills` descriptions now
+  explicitly frame themselves as BROWSING lenses and point at
+  `/implexa:run` for the REUSE path. Clearer separation of intent.
+- Help skill's natural-language phrase table leads with `/implexa:run`
+  examples ("Run my triage skill") so Claude prefers it.
+
 ## [0.4.0] — 2026-05-14
 
 Adds the personal-library lens. Users were getting `org-skills` overflowing

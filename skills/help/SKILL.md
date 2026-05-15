@@ -31,11 +31,12 @@ The core action. Demonstrate a workflow once, get a structured skill back.
 
 ## 📂 Browse + invoke saved skills
 
-- `Show me my skills` → calls `/implexa:my-skills` (your personal library)
-- `Show me my org's skills` → calls `/implexa:org-skills` (team-wide view)
+- `Run my triage skill` → calls `/implexa:run` (fuzzy-matches + applies — preferred)
+- `Use my Implexa skill for outreach` → calls `/implexa:run`
+- `Show me my skills` → calls `/implexa:my-skills` (your personal library — browse only)
+- `Show me my org's skills` → calls `/implexa:org-skills` (team-wide view — browse only)
 - `What skills have I saved?` → calls `/implexa:my-skills`
 - `Browse the Implexa Playbooks` → calls `/implexa:playbooks`
-- `Run my "daily-brief" skill` → fires `apply_org_skill` with that slug
 - `What workflows has my team built?`
 
 ## 🔗 Share a skill (viral)
@@ -107,8 +108,9 @@ Post-hoc capture (no demo flow required).
 |---|---|
 | `/implexa:record-skill` | Start a demonstration recording → save as structured skill |
 | `/implexa:save-this` | Post-hoc capture of current session |
-| `/implexa:my-skills` | Browse + invoke skills YOU authored (personal library) |
-| `/implexa:org-skills` | Browse + invoke your org's full skill library (everyone's) |
+| `/implexa:run` | **Find + run** a saved skill (fuzzy matches your query — preferred path for skill reuse) |
+| `/implexa:my-skills` | **Browse** skills YOU authored (personal library) |
+| `/implexa:org-skills` | **Browse** your org's full skill library (everyone's) |
 | `/implexa:playbooks` | Browse the horizontal Playbook library |
 | `/implexa:fork <slug>` | Clone a skill into your org for customization |
 | `/implexa:share-this` | Generate a share link (team-gated or public) |

@@ -1,5 +1,5 @@
 ---
-description: List the skills YOU personally authored — your private library. Use when the user says "show my skills", "list my skills", "what skills have I made", "what have I recorded", "my library", "my workflows", "what did I save", or wants to see ONLY their own captured skills (not the org-wide view). Distinct from /implexa:org-skills, which shows everything visible to your org (team-shared, public, base Playbooks). This is the personal-library lens.
+description: List the skills YOU personally authored — your private library. Use when the user says "show my skills", "list my skills", "what skills have I made", "what have I recorded", "my library", "my workflows", "what did I save", or wants to see ONLY their own captured skills (not the org-wide view). Distinct from /implexa:org-skills, which shows everything visible to your org (team-shared, public, base Playbooks). NOTE — if the user wants to RUN one of their skills (vs. just browse), use /implexa:run instead — that command fuzzy-matches a query against the library and auto-applies the best fit. This is the BROWSING lens.
 ---
 
 # Show my skills (personal library)
