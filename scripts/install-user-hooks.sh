@@ -184,13 +184,18 @@ else
   ok "Node.js / npx found at $(command -v npx)"
 fi
 
-# ─── 4. Get the API key (token, env, or prompt) ────────────────────────
-# Resolution order:
-#   1. IMPLEXA_INSTALL_TOKEN — short-lived token redeemed for a fresh API
+# ─── 4. Get the API key (token, env, device-auth, or prompt) ───────────
+# Resolution order (in priority):
+#   1. IMPLEXA_API_KEY env var — explicit override (CI, advanced users)
+#   2. IMPLEXA_INSTALL_TOKEN — short-lived token redeemed for a fresh API
 #      key (set by core.implexa.ai/install.sh when user copies the pre-
-#      baked curl from app.implexa.ai/install). Zero manual key handling.
-#   2. IMPLEXA_API_KEY env var — manual override / legacy flow
-#   3. Interactive prompt — fallback when running from a downloaded copy
+#      baked curl from app.implexa.ai/install)
+#   3. Device-auth flow — opens the user's browser to log in / sign up,
+#      polls for approval, mints a fresh API key on success. This is the
+#      default path for the universal `curl install.sh | bash` command
+#      that the marketing site shows. RFC 8628 device-authorization grant.
+#   4. Interactive prompt for raw API key — last-resort fallback when
+#      no browser is available (SSH, headless CI)
 #
 # CRITICAL: when this script is run via `curl ... | bash`, stdin IS the
 # script source. A naive `read -r API_KEY` would steal the next line of
@@ -198,21 +203,26 @@ fi
 # parse with cryptic syntax errors later. Always read from /dev/tty so
 # we get keyboard input regardless of how the script was invoked.
 API_KEY="${IMPLEXA_API_KEY:-}"
+API_BASE="${IMPLEXA_API_BASE_URL:-https://core.implexa.ai}"
 
-# ── Path 1: Install token (passwordless install) ──────────────────────
+# Try to open a URL in the user's default browser. Best-effort on macOS
+# (open), Linux (xdg-open), and Windows WSL (wslview / cmd.exe). Silent
+# on failure — the URL is also printed so the user can copy/paste.
+open_browser() {
+  local url="$1"
+  if   command -v open       >/dev/null 2>&1; then open "$url"     >/dev/null 2>&1 &
+  elif command -v xdg-open   >/dev/null 2>&1; then xdg-open "$url" >/dev/null 2>&1 &
+  elif command -v wslview    >/dev/null 2>&1; then wslview "$url"  >/dev/null 2>&1 &
+  fi
+}
+
+# ── Path 1: Install token (pre-baked from dashboard /install) ─────────
 if [ -z "$API_KEY" ] && [ -n "${IMPLEXA_INSTALL_TOKEN:-}" ]; then
-  API_BASE="${IMPLEXA_API_BASE_URL:-https://core.implexa.ai}"
   echo "→ Redeeming install token..."
   REDEEM_RESPONSE=$(curl -sS -X POST "$API_BASE/api/v2/install-tokens/$IMPLEXA_INSTALL_TOKEN/redeem" \
     -H "Content-Type: application/json" 2>&1 || echo '{"error":"network error"}')
-  # Try to extract apiKey from JSON. jq if available, else grep/sed fallback.
-  if command -v jq >/dev/null 2>&1; then
-    API_KEY=$(echo "$REDEEM_RESPONSE" | jq -r '.apiKey // empty' 2>/dev/null)
-    REDEEM_ERROR=$(echo "$REDEEM_RESPONSE" | jq -r '.error // empty' 2>/dev/null)
-  else
-    API_KEY=$(echo "$REDEEM_RESPONSE" | grep -o '"apiKey":"[^"]*"' | sed 's/"apiKey":"\([^"]*\)"/\1/')
-    REDEEM_ERROR=$(echo "$REDEEM_RESPONSE" | grep -o '"error":"[^"]*"' | sed 's/"error":"\([^"]*\)"/\1/')
-  fi
+  API_KEY=$(echo "$REDEEM_RESPONSE" | jq -r '.apiKey // empty' 2>/dev/null)
+  REDEEM_ERROR=$(echo "$REDEEM_RESPONSE" | jq -r '.error // empty' 2>/dev/null)
   if [ -z "$API_KEY" ]; then
     err "Failed to redeem install token: ${REDEEM_ERROR:-unknown error}"
     err "Tokens expire after 10 min and are single-use."
@@ -222,7 +232,107 @@ if [ -z "$API_KEY" ] && [ -n "${IMPLEXA_INSTALL_TOKEN:-}" ]; then
   ok "Token redeemed — got a fresh API key (${API_KEY:0:13}...)"
 fi
 
-# ── Path 2: Prompt for key ────────────────────────────────────────────
+# ── Path 2: Device-auth flow (browser login from terminal) ───────────
+# Used when the user runs the universal install command:
+#   curl -fsSL https://core.implexa.ai/install.sh | bash
+# No token, no env key — we kick off RFC 8628 device authorization:
+# print a URL + verification code, open the browser, poll for approval.
+if [ -z "$API_KEY" ] && [ -r /dev/tty ]; then
+  echo ""
+  info "Starting browser login..."
+  START_RESPONSE=$(curl -sS -X POST "$API_BASE/api/v2/cli-auth/start" \
+    -H "Content-Type: application/json" -d '{}' 2>&1 || echo '{"error":"network error"}')
+  DEVICE_CODE=$(echo "$START_RESPONSE"   | jq -r '.deviceCode // empty'       2>/dev/null)
+  VERIFICATION_CODE=$(echo "$START_RESPONSE" | jq -r '.verificationCode // empty' 2>/dev/null)
+  VERIFICATION_URL=$(echo "$START_RESPONSE"  | jq -r '.verificationUrl // empty'  2>/dev/null)
+  POLL_INTERVAL=$(echo "$START_RESPONSE" | jq -r '.interval // 2'              2>/dev/null)
+  EXPIRES_IN=$(echo "$START_RESPONSE"    | jq -r '.expiresIn // 600'           2>/dev/null)
+
+  if [ -z "$DEVICE_CODE" ] || [ -z "$VERIFICATION_URL" ]; then
+    err "Failed to start browser login (could not reach $API_BASE)."
+    err "Falling back to manual API-key prompt."
+  else
+    echo ""
+    echo "${C_BOLD}Open this URL in your browser to log in:${C_RESET}"
+    echo ""
+    echo "    ${C_BLUE}$VERIFICATION_URL${C_RESET}"
+    echo ""
+    echo "${C_BOLD}Verification code:${C_RESET}  ${C_GREEN}$VERIFICATION_CODE${C_RESET}"
+    echo "    Make sure the browser shows the same code before approving."
+    echo ""
+
+    open_browser "$VERIFICATION_URL"
+    info "Tried to open your browser automatically. If nothing happened, copy the URL above."
+
+    # Poll loop. POLL_INTERVAL is seconds (server says 2). Cap total wait
+    # at EXPIRES_IN seconds, with a small buffer so we time out gracefully.
+    MAX_POLLS=$(( (EXPIRES_IN / POLL_INTERVAL) + 5 ))
+    POLL_COUNT=0
+    AUTH_EMAIL=""
+    echo -n "→ Waiting for approval (press Ctrl+C to cancel) "
+    while [ $POLL_COUNT -lt $MAX_POLLS ]; do
+      sleep "$POLL_INTERVAL"
+      POLL_RESPONSE=$(curl -sS -X POST "$API_BASE/api/v2/cli-auth/poll" \
+        -H "Content-Type: application/json" \
+        -d "{\"deviceCode\":\"$DEVICE_CODE\"}" 2>&1 || echo '{"status":"network-error"}')
+      POLL_STATUS=$(echo "$POLL_RESPONSE" | jq -r '.status // empty' 2>/dev/null)
+
+      case "$POLL_STATUS" in
+        approved)
+          API_KEY=$(echo "$POLL_RESPONSE"    | jq -r '.apiKey // empty' 2>/dev/null)
+          AUTH_EMAIL=$(echo "$POLL_RESPONSE" | jq -r '.email // empty'  2>/dev/null)
+          if [ -n "$API_KEY" ]; then
+            echo ""
+            ok "Logged in as ${C_BOLD}$AUTH_EMAIL${C_RESET}"
+          fi
+          break
+          ;;
+        denied)
+          echo ""
+          err "You denied this login request. Run the install command again if that wasn't intentional."
+          exit 1
+          ;;
+        expired)
+          echo ""
+          err "Login session expired (${EXPIRES_IN}s timeout). Run the install command again."
+          exit 1
+          ;;
+        consumed)
+          echo ""
+          err "Login session already used. Run the install command again to start fresh."
+          exit 1
+          ;;
+        pending|"")
+          # Still waiting — print a dot every ~5 polls so the line isn't silent.
+          if [ $(( POLL_COUNT % 5 )) -eq 0 ]; then printf "."; fi
+          ;;
+        *)
+          # Unknown status (network error, server bug). Keep polling — server
+          # might recover; if not, MAX_POLLS will time us out.
+          if [ $(( POLL_COUNT % 5 )) -eq 0 ]; then printf "?"; fi
+          ;;
+      esac
+      POLL_COUNT=$(( POLL_COUNT + 1 ))
+    done
+
+    if [ -z "$API_KEY" ]; then
+      echo ""
+      err "Timed out waiting for browser approval. Run the install command again."
+      exit 1
+    fi
+
+    # ── Confirmation gate — matches `stripe login` / `gh auth login` UX ──
+    # User just logged in via the browser; now we make sure they're ready
+    # before we touch their machine. Press Enter to proceed.
+    echo ""
+    echo "${C_BOLD}Press Enter to install, or Ctrl+C to cancel.${C_RESET}"
+    read -r _confirm < /dev/tty || true
+  fi
+fi
+
+# ── Path 3: Last-resort manual API-key prompt ─────────────────────────
+# Only hit when device-auth couldn't run (no tty, network error during
+# /cli-auth/start, etc.). Same behavior as the original install script.
 if [ -z "$API_KEY" ]; then
   if [ ! -r /dev/tty ]; then
     err "No API key provided and no terminal available to prompt."
