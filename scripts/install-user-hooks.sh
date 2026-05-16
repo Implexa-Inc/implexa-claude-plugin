@@ -408,6 +408,127 @@ fi
 mv "$TMP_SETTINGS" "$SETTINGS"
 ok "settings.json patched (3 hook events registered)"
 
+# ─── 8b. Auto-install the Implexa plugin (Claude Code CLI) ─────────────
+# Mimics what /plugin marketplace add + /plugin install do internally, so
+# users don't have to type those two commands inside Claude Code. After
+# this, the user pastes one curl and is fully connected.
+#
+# What we replicate (Claude Code's plugin install writes these):
+#   1. Clone the plugin repo to ~/.claude/plugins/marketplaces/implexa/
+#   2. Copy that to ~/.claude/plugins/cache/implexa/implexa/<version>/
+#   3. Add an entry to ~/.claude/plugins/known_marketplaces.json
+#   4. Add an entry to ~/.claude/plugins/installed_plugins.json
+#
+# Failure here is NON-FATAL — we fall back to printing the two slash
+# commands so the user can run them inside Claude Code manually. Anthropic
+# could change this internal format in future versions, and that fallback
+# is our safety net.
+#
+# Note: Claude Code reads these files on launch. If Claude Code is already
+# running, the user has to fully quit and relaunch to load the plugin.
+# That's already covered by the existing "Next steps" guidance below.
+
+PLUGINS_DIR="$CLAUDE_DIR/plugins"
+MARKETPLACES_DIR="$PLUGINS_DIR/marketplaces"
+MARKETPLACE_PATH="$MARKETPLACES_DIR/implexa"
+CACHE_BASE="$PLUGINS_DIR/cache/implexa/implexa"
+KNOWN_MARKETPLACES="$PLUGINS_DIR/known_marketplaces.json"
+INSTALLED_PLUGINS="$PLUGINS_DIR/installed_plugins.json"
+PLUGIN_REPO_URL="https://github.com/Implexa-Inc/implexa-claude-plugin.git"
+
+print_plugin_fallback() {
+  warn "Couldn't auto-install the Implexa plugin into Claude Code."
+  echo "    Run these two commands inside Claude Code instead:"
+  echo "      /plugin marketplace add Implexa-Inc/implexa-claude-plugin"
+  echo "      /plugin install implexa@Implexa-Inc/implexa-claude-plugin"
+  echo ""
+}
+
+install_implexa_plugin() {
+  command -v git >/dev/null 2>&1 || { warn "git not found — can't auto-install plugin"; return 1; }
+  mkdir -p "$MARKETPLACES_DIR" "$PLUGINS_DIR/cache/implexa" || return 1
+
+  # ── 1. Clone or refresh the marketplace repo ──
+  if [ -d "$MARKETPLACE_PATH/.git" ]; then
+    info "Updating Implexa plugin marketplace..."
+    if ! (cd "$MARKETPLACE_PATH" && git fetch --quiet origin main && git reset --hard --quiet origin/main); then
+      warn "git refresh failed in $MARKETPLACE_PATH (keeping existing copy)"
+    fi
+  else
+    info "Cloning Implexa plugin marketplace..."
+    if ! git clone --quiet --depth 1 "$PLUGIN_REPO_URL" "$MARKETPLACE_PATH"; then
+      err "git clone failed (network issue?)"
+      return 1
+    fi
+  fi
+
+  # ── 2. Read version + commit sha from the cloned manifest ──
+  local plugin_json="$MARKETPLACE_PATH/.claude-plugin/plugin.json"
+  if [ ! -f "$plugin_json" ]; then
+    err "plugin.json missing after clone: $plugin_json"
+    return 1
+  fi
+  local version commit_sha now
+  version=$(jq -r '.version // "unknown"' "$plugin_json")
+  commit_sha=$(cd "$MARKETPLACE_PATH" && git rev-parse HEAD 2>/dev/null || echo "unknown")
+  # ISO 8601 with millisecond precision on Linux, second precision on BSD/macOS.
+  now=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+
+  # ── 3. Copy marketplace into the versioned cache path ──
+  local cache_path="$CACHE_BASE/$version"
+  mkdir -p "$CACHE_BASE"
+  rm -rf "$cache_path"
+  if ! cp -R "$MARKETPLACE_PATH" "$cache_path"; then
+    err "Failed to copy plugin to $cache_path"
+    return 1
+  fi
+
+  # ── 4. Patch known_marketplaces.json ──
+  [ -f "$KNOWN_MARKETPLACES" ] || echo '{}' > "$KNOWN_MARKETPLACES"
+  local tmp_km="$KNOWN_MARKETPLACES.tmp.$$"
+  if ! jq --arg loc "$MARKETPLACE_PATH" --arg now "$now" --arg url "$PLUGIN_REPO_URL" '
+    .implexa = {
+      source: { source: "git", url: $url },
+      installLocation: $loc,
+      lastUpdated: $now,
+      autoUpdate: true
+    }
+  ' "$KNOWN_MARKETPLACES" > "$tmp_km"; then
+    rm -f "$tmp_km"
+    err "Failed to patch known_marketplaces.json"
+    return 1
+  fi
+  mv "$tmp_km" "$KNOWN_MARKETPLACES"
+
+  # ── 5. Patch installed_plugins.json (preserves first-install timestamp) ──
+  [ -f "$INSTALLED_PLUGINS" ] || echo '{"version":2,"plugins":{}}' > "$INSTALLED_PLUGINS"
+  local tmp_ip="$INSTALLED_PLUGINS.tmp.$$"
+  if ! jq --arg path "$cache_path" --arg ver "$version" --arg sha "$commit_sha" --arg now "$now" '
+    .version = (.version // 2)
+    | .plugins = (.plugins // {})
+    | .plugins["implexa@implexa"] = [{
+        scope: "user",
+        installPath: $path,
+        version: $ver,
+        installedAt: ((.plugins["implexa@implexa"][0].installedAt) // $now),
+        lastUpdated: $now,
+        gitCommitSha: $sha
+      }]
+  ' "$INSTALLED_PLUGINS" > "$tmp_ip"; then
+    rm -f "$tmp_ip"
+    err "Failed to patch installed_plugins.json"
+    return 1
+  fi
+  mv "$tmp_ip" "$INSTALLED_PLUGINS"
+
+  ok "Implexa plugin installed (v$version)"
+  return 0
+}
+
+if ! install_implexa_plugin; then
+  print_plugin_fallback
+fi
+
 # ─── 9. Smoke test ─────────────────────────────────────────────────────
 echo ""
 info "Running smoke test (simulates Claude Desktop's clean GUI environment)..."
@@ -457,15 +578,17 @@ echo ""
 echo "${C_BOLD}${C_GREEN}🎉 Setup complete.${C_RESET}"
 echo ""
 echo "${C_BOLD}Next steps:${C_RESET}"
-echo "  1. ${C_BOLD}Fully quit Claude${C_RESET} (Cmd+Q on Mac — closing windows isn't enough)"
-echo "     This is REQUIRED — MCP servers + env vars are read on launch."
-echo "  2. ${C_BOLD}(If plugin updated)${C_RESET} reinstall the plugin: Customize → Personal plugins"
-echo "     → Implexa → remove, then re-add via the marketplace. This pulls"
-echo "     the latest skill text (slash command prompts updated)."
-echo "  3. Relaunch Claude (Desktop, Cowork, or CLI)"
-echo "  4. Run ${C_BOLD}/implexa:setup${C_RESET} to verify MCP connected"
+echo "  1. ${C_BOLD}Fully quit Claude${C_RESET} if it's already running"
+echo "     (Cmd+Q on Mac — closing windows isn't enough; plugin/MCP load on launch)"
+echo "  2. Launch Claude Code: ${C_BOLD}claude${C_RESET}"
+echo "  3. Run ${C_BOLD}/implexa:setup${C_RESET} to verify everything's wired"
 echo "     You should see: ✅ You're connected to Implexa"
-echo "  5. Run ${C_BOLD}/implexa:record-skill${C_RESET} to test capture"
+echo "  4. Run ${C_BOLD}/implexa:record-skill${C_RESET} to capture your first skill"
+echo ""
+echo "${C_BOLD}Claude Desktop / Cowork users:${C_RESET}"
+echo "  The MCP server is registered, but the plugin's skills + slash commands"
+echo "  need to be added separately: Customize → Personal plugins → Add marketplace"
+echo "  → https://github.com/Implexa-Inc/implexa-claude-plugin"
 echo ""
 echo "Verify the capture worked: visit app.implexa.ai/skills/<your-skill-slug>/raw-capture"
 echo "Both signals should be non-zero:"
