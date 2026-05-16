@@ -184,13 +184,45 @@ else
   ok "Node.js / npx found at $(command -v npx)"
 fi
 
-# ─── 4. Get the API key (env or prompt) ────────────────────────────────
+# ─── 4. Get the API key (token, env, or prompt) ────────────────────────
+# Resolution order:
+#   1. IMPLEXA_INSTALL_TOKEN — short-lived token redeemed for a fresh API
+#      key (set by core.implexa.ai/install.sh when user copies the pre-
+#      baked curl from app.implexa.ai/install). Zero manual key handling.
+#   2. IMPLEXA_API_KEY env var — manual override / legacy flow
+#   3. Interactive prompt — fallback when running from a downloaded copy
+#
 # CRITICAL: when this script is run via `curl ... | bash`, stdin IS the
 # script source. A naive `read -r API_KEY` would steal the next line of
 # the script itself instead of reading from the keyboard, breaking the
 # parse with cryptic syntax errors later. Always read from /dev/tty so
 # we get keyboard input regardless of how the script was invoked.
 API_KEY="${IMPLEXA_API_KEY:-}"
+
+# ── Path 1: Install token (passwordless install) ──────────────────────
+if [ -z "$API_KEY" ] && [ -n "${IMPLEXA_INSTALL_TOKEN:-}" ]; then
+  API_BASE="${IMPLEXA_API_BASE_URL:-https://core.implexa.ai}"
+  echo "→ Redeeming install token..."
+  REDEEM_RESPONSE=$(curl -sS -X POST "$API_BASE/api/v2/install-tokens/$IMPLEXA_INSTALL_TOKEN/redeem" \
+    -H "Content-Type: application/json" 2>&1 || echo '{"error":"network error"}')
+  # Try to extract apiKey from JSON. jq if available, else grep/sed fallback.
+  if command -v jq >/dev/null 2>&1; then
+    API_KEY=$(echo "$REDEEM_RESPONSE" | jq -r '.apiKey // empty' 2>/dev/null)
+    REDEEM_ERROR=$(echo "$REDEEM_RESPONSE" | jq -r '.error // empty' 2>/dev/null)
+  else
+    API_KEY=$(echo "$REDEEM_RESPONSE" | grep -o '"apiKey":"[^"]*"' | sed 's/"apiKey":"\([^"]*\)"/\1/')
+    REDEEM_ERROR=$(echo "$REDEEM_RESPONSE" | grep -o '"error":"[^"]*"' | sed 's/"error":"\([^"]*\)"/\1/')
+  fi
+  if [ -z "$API_KEY" ]; then
+    err "Failed to redeem install token: ${REDEEM_ERROR:-unknown error}"
+    err "Tokens expire after 10 min and are single-use."
+    err "Get a fresh install command at https://app.implexa.ai/install"
+    exit 1
+  fi
+  ok "Token redeemed — got a fresh API key (${API_KEY:0:13}...)"
+fi
+
+# ── Path 2: Prompt for key ────────────────────────────────────────────
 if [ -z "$API_KEY" ]; then
   if [ ! -r /dev/tty ]; then
     err "No API key provided and no terminal available to prompt."
