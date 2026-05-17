@@ -78,9 +78,14 @@ fi
 # Terminal sessions and survive shell `unset` — anyone re-installing or
 # testing a fresh signup flow needs these gone.
 if [[ "$OSTYPE" == "darwin"* ]] && command -v launchctl >/dev/null 2>&1; then
-  launchctl unsetenv IMPLEXA_API_KEY      2>/dev/null || true
-  launchctl unsetenv IMPLEXA_API_URL      2>/dev/null || true
-  launchctl unsetenv IMPLEXA_INSTALL_TOKEN 2>/dev/null || true
+  # Catch every IMPLEXA_* key the install script (or earlier debug sessions)
+  # might have written to launchctl. HOOK_DEBUG isn't set by our scripts
+  # today, but legacy testers set it manually and it leaks the same way.
+  launchctl unsetenv IMPLEXA_API_KEY        2>/dev/null || true
+  launchctl unsetenv IMPLEXA_API_URL        2>/dev/null || true
+  launchctl unsetenv IMPLEXA_INSTALL_TOKEN  2>/dev/null || true
+  launchctl unsetenv IMPLEXA_API_BASE_URL   2>/dev/null || true
+  launchctl unsetenv IMPLEXA_HOOK_DEBUG     2>/dev/null || true
   ok "Cleared IMPLEXA_* from launchctl env"
 fi
 
