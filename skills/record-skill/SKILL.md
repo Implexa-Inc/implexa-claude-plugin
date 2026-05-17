@@ -1,12 +1,43 @@
 ---
-description: Capture a workflow as a structured skill by demonstrating it once. Use when the user says "record a skill", "record this", "record this workflow", "watch me do this once", "let me show you", "I'll do this once and you save it", "capture this as a skill while I do it", "I'm going to walk through this — turn it into a skill", or invokes /implexa:record-skill. Three-phase flow: start_demonstration (open recording) → user does work → end_demonstration → record_demo_freetext (optional "anything else?") → interview_for_skill (Haiku asks 3-8 questions) → finalize → 6-component skill saved org-wide. THE killer feature of the Skill Graph — turns one demonstration into a reusable, conditional, measurable skill via post-hoc structured interview.
+description: Capture a workflow as a structured skill by demonstrating it once — OR update an existing skill by re-recording into it. Use when the user says "record a skill", "record this", "record this workflow", "watch me do this once", "let me show you", "I'll do this once and you save it", "capture this as a skill", "improve my X skill", "update my X skill by re-recording", "add a step to my X skill via demonstration", or invokes /implexa:record-skill. THE killer feature of the Skill Graph — turns one demonstration into a reusable, conditional, measurable skill via post-hoc structured interview. ALSO the right path for adding new procedural steps to existing skills (vs update_org_skill which only text-edits — fine for typos but doesn't capture new tool calls).
 ---
 
 # Watch me do this once → save as a skill
 
 The user wants to demonstrate a workflow once and have it captured as a reusable skill — properly structured (not just a saved prompt), with conditionals, output contract, and outcome signal extracted via a post-demonstration interview.
 
-This is a 3-phase flow. Don't skip phases.
+This is a 3-phase flow with a branch upfront (new vs update existing).
+
+## Phase 0 — New skill or update existing?
+
+Before starting the recording, find out which path this is. The flow + payload differ at the finalize step.
+
+### When to ask explicitly
+
+Ask only if you don't already know from the user's phrasing. **Don't ask if it's obvious**:
+- *"record a skill for X"*, *"watch me do X"*, *"capture this"* → **new skill**. Skip to Phase 1.
+- *"update my X skill by re-recording"*, *"add a step to my prospecting skill via demo"*, *"improve my hackernews drafter"*, *"re-record my Y skill with one more step"* → **update existing**. Continue this step.
+- Ambiguous (*"record a skill that adds a step to X"*) → ask:
+
+> *"Is this a fresh new skill, or are you re-recording into an existing one (e.g. adding a step to a skill you already have)?"*
+
+### If updating an existing skill
+
+1. **Identify the target skill**. If the user named it ("update my HN drafter"), call `list_org_skills` with `query: "<user's words>"` and `createdByMe: true` to find the match. If multiple hits, show a numbered list and have the user pick. Capture the resulting `skillId`.
+
+2. **Confirm with the user before recording starts**:
+
+   > *"Updating `<skill name>` (v<X>). When you finish demonstrating, I'll replace the existing SKILL.md content with this new recording. The old version is preserved in skill history — easy to roll back if needed. Ready?"*
+
+3. **Remember the skillId** — you'll pass it to `interview_for_skill` at finalize as `replacingSkillId`.
+
+4. Continue to Phase 1 with `initialIntent` framed as the UPDATE goal (not the original skill's intent), e.g. *"add inline-posting step via Chrome MCP to the HN comment drafter"*.
+
+### Why this branch matters
+
+The text-edit path (`update_org_skill`) is great for typos, renames, copy polish, and restructuring — but for **adding new procedural steps that call new tools**, it's risky. Claude has to *imagine* what the step should be from your verbal description. The re-record path captures the REAL tool sequence from a live demonstration, so the resulting skill is grounded in observed behavior — not LLM-authored guesswork.
+
+Use re-record when the change involves: new tool calls, new branches, new decision points, new error handling that needs to be validated. Use text edit (`update_org_skill`) when the change is: a typo, a rename, a copy tweak, or a structural reorg of existing content.
 
 ## Phase 1 — Start the recording
 
@@ -91,6 +122,11 @@ When all questions are answered (or the user says "enough", "just save it", etc.
 - `finalIntent`: optionally refined intent (defaults to the initialIntent)
 - `scope`: "org" (default) or "private" (only ask if the user implies it should be just theirs)
 - `activate`: true if the user already said "yes activate it for everyone"; otherwise leave false (saves as draft)
+- **`replacingSkillId`** — REQUIRED if Phase 0 routed this as an "update existing" path. Pass the skillId you captured in Phase 0. This tells the backend to REPLACE the existing skill's content with the new demonstration (vs creating a new skill). The skill's version bumps, history records the change, and (if originally a draft) it auto-activates. Forks promote out of fork-state on first edit (counts as 1 capture against quota).
+
+  If `replacingSkillId` is set, the response will include `replacedTarget: {id, slug, name}` and `wasFirstEditToFork: boolean`. Use the latter to mention "this counted as 1 capture against your monthly quota" if it was a fork-first-edit.
+
+  DO NOT pass `replacingSkillId` if Phase 0 confirmed this is a new skill — that would replace the wrong skill.
 
 ### Step 3f — Confirm + show preview
 
