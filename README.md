@@ -190,9 +190,22 @@ Idempotent. Reverses everything the installer set up (config files, hooks, MCP w
 
 ---
 
+## What's open source vs. hosted
+
+| Component | Status | Why |
+|---|---|---|
+| This plugin (`implexa-claude-plugin`) | **MIT licensed** | The plugin runs on your machine. We want anyone to be able to audit exactly what it captures + sends to our backend. |
+| Install scripts (`install.sh`, `uninstall.sh`) | **MIT licensed** | Same reason — they run on your machine. |
+| `~/.claude/implexa-hook.sh` (the hook launcher) | **MIT licensed** | Same reason. |
+| Backend API (`core.implexa.ai`) | Hosted SaaS | Receives skill captures, MCP requests, attribution events. Closed source. Standard SaaS model. |
+| Dashboard (`app.implexa.ai`) | Hosted SaaS | The web UI for browsing + sharing skills. Source is currently visible on GitHub but not formally licensed. |
+| Skill Graph data | Hosted | Your skills live in our database. RLS isolates per-org. Export available via `/api/v2/skills` for compliance / portability. |
+
+We follow the same model as Stripe CLI, Supabase CLI, and fly.io — open the client (the thing on your laptop) so it's auditable, run the service (the thing that holds your data) as a managed SaaS.
+
 ## License
 
-MIT. The plugin source, install scripts, and capture pipeline are all open source. Backend services + the hosted dashboard are SaaS.
+[MIT](./LICENSE). Plugin source + install scripts only. The backend service is not covered.
 
 ---
 
