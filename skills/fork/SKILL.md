@@ -8,13 +8,45 @@ The user wants their own customizable copy of an existing skill. Fork it.
 
 ## Step 1 — Resolve the source skill
 
-If the user pointed to a specific skill:
+There are four kinds of input to handle:
+
+**1a. Explicit pointer** — slug, ID, or a recently-mentioned skill name.
 - Slug → use as `sourceSkillSlug`
 - Mongo ID → use as `sourceSkillId`
+- "Fork that one" (vague) → look back at the most recent skill name in the
+  conversation, confirm with the user.
 
-If they pasted a share link (`implexa.ai/s/<token>`) → don't fork directly; instead tell them: *"Use the install button on that page — it does the fork after login."*
+**1b. Share link** — if they pasted `implexa.ai/s/<token>`, don't fork directly.
+Tell them: *"Use the Install button on that page — it does the fork after login."*
 
-If they vaguely said "fork that one" → look back in the conversation for the most recently-mentioned skill, confirm the name with them.
+**1c. Fuzzy query** — the user said something like *"fork the hackernews skill"*
+or *"fork the prospecting one"*. The skill might be in their library, their
+org's, or in the public/Trending Globally library. Resolve by searching:
+
+  - Call **`list_org_skills`** with `query: "<their words>"` and
+    `includeUniversal: true`. The flag widens the search to include public
+    skills from any org, so HackerNews-style seeds (curated by Implexa Team or
+    other orgs) become forkable by slug.
+  - Render the results as a numbered list with scope + author + usage:
+
+    ```
+    Found these matching "hackernews" — pick one to fork:
+
+      1. 🌍 Daily HN comment drafter      — by Implexa Team · 41 runs
+      2. 🌍 HN trending Claude posts      — by Implexa Team · 16 runs
+      3. 👥 Bug triage from Jira          — your org · 8 runs
+
+    Reply with a number, or describe more precisely.
+    ```
+
+  - When the user picks, resolve to that skill's slug → Step 2.
+  - **Exactly 1 strong match** (query appears in name or trigger phrases) → just
+    fork it directly without asking. Don't make the user pick from a list of 1.
+
+**1d. Truly nothing found** — after the universal-scope search returns zero,
+tell the user: *"No skill matches 'X' in your library, your org's, or the
+public library. Want to capture this workflow as a new skill via
+`/implexa:record-skill` instead?"*
 
 ## Step 2 — Call fork_org_skill
 
