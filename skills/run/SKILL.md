@@ -40,11 +40,34 @@ Call **`list_org_skills`** with:
 - **Multiple hits** → render them as a numbered list (see Step 3 format),
   ask the user to pick.
 - **0 hits in their own library** → call `list_org_skills` again WITHOUT
-  `createdByMe` (full org search). Apply the same logic to the broader
-  results.
-- **0 hits anywhere** → tell the user no matching skill found and offer:
+  `createdByMe` (full org search). Apply the same logic.
+- **0 hits in their org either** → call `list_org_skills` ONE MORE TIME
+  with `includeUniversal: true` — this expands the search to the public /
+  Trending Globally library (skills explicitly shared by other orgs).
+  If you get hits, render them as a numbered list with a clear "from the
+  public library" framing:
+
+  ```
+  No saved skill matches "X" in your library yet. Found these in the
+  public library — want to install one?
+
+    1. 🌍 Daily HN comment drafter        — by Implexa Team · 41 runs
+    2. 🌍 Sales call prep — account research — by Implexa Team · 24 runs
+
+  Reply with a number to install + run, or "no thanks" to skip.
+  ```
+
+  When the user picks one, **first fork it** into their org via
+  `fork_org_skill` (so it lands in their library + shows up in
+  `/implexa:my-skills` from now on), then apply the freshly-forked copy.
+  Or, if the user says "just run it once," call `apply_org_skill`
+  directly on the universal slug without forking.
+
+- **0 hits anywhere (including the public library)** → tell the user no
+  matching skill found and offer:
   - "Run `/implexa:my-skills` to see your full library"
   - "Capture this as a new skill via `/implexa:record-skill`"
+  - "Browse public skills at https://app.implexa.ai/skills"
 
 ### Be greedy on the match
 
