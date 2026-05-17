@@ -157,9 +157,47 @@ if [ -f "$INSTALLED_PLUGINS" ] && command -v jq >/dev/null 2>&1; then
   fi
 fi
 
+# ─── 6. Detect leftover env-var exports in shell startup files ───────
+# We can't auto-delete user-editable config (too invasive without consent),
+# but we CAN warn loudly when the leak source is sitting in their .zshrc /
+# .zshenv / etc. — saves the "why is my fresh signup still picking up the
+# old account?" frustration. We check the common interactive + non-interactive
+# zsh/bash startup files.
+LEAK_FILES=""
+for f in "$HOME/.zshrc" "$HOME/.zshenv" "$HOME/.zprofile" "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.profile"; do
+  [ -f "$f" ] || continue
+  if grep -qE "IMPLEXA_API_KEY|IMPLEXA_INSTALL_TOKEN" "$f" 2>/dev/null; then
+    LEAK_FILES="$LEAK_FILES $f"
+  fi
+done
+
 echo ""
 echo "${C_BOLD}${C_GREEN}🧹 Uninstall complete.${C_RESET}"
 echo ""
+
+# Show the env-leak warning ABOVE the "what's NOT removed" notes so it's the
+# first thing the user sees — this is the highest-friction issue for anyone
+# wanting to test a fresh install.
+if [ -n "$LEAK_FILES" ]; then
+  echo "${C_BOLD}${C_YELLOW}⚠ Action required for a fully fresh state:${C_RESET}"
+  echo "${C_YELLOW}    Your shell startup file(s) still export IMPLEXA_API_KEY:${C_RESET}"
+  for f in $LEAK_FILES; do
+    line=$(grep -n "IMPLEXA_API_KEY\|IMPLEXA_INSTALL_TOKEN" "$f" 2>/dev/null | head -3)
+    echo "${C_YELLOW}      $f:${C_RESET}"
+    echo "$line" | sed 's/^/        /'
+  done
+  echo ""
+  echo "${C_YELLOW}    These lines re-set the env var every time you open a new Terminal.${C_RESET}"
+  echo "${C_YELLOW}    Remove them manually, then close + reopen Terminal. Quick option:${C_RESET}"
+  echo ""
+  for f in $LEAK_FILES; do
+    echo "      sed -i.bak '/IMPLEXA_API_KEY\\|IMPLEXA_INSTALL_TOKEN/d' $f"
+  done
+  echo ""
+  echo "${C_YELLOW}    (Creates a .bak in case you want to restore.)${C_RESET}"
+  echo ""
+fi
+
 echo "${C_BOLD}What's NOT removed:${C_RESET}"
 echo "  • Your API keys in the Implexa cloud are still active."
 echo "    To revoke them: https://app.implexa.ai/settings/api-keys"
