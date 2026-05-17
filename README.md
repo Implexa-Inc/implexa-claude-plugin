@@ -1,109 +1,204 @@
-# Implexa — Skill recording for any AI session
+# Implexa — Record any Claude workflow once. Run it forever.
 
-> **Demonstrate any workflow once. Implexa captures it as a reusable, structured, measurable skill — shareable with your team or the world.**
+> **One demo. Six-component skill. Portable across Claude Code, Cowork, and Chat. Your team's best workflow becomes everyone's reusable skill.**
 
-The killer feature is the *first* feature you use. Start `/implexa:record-skill`, do your work normally, hit stop. Implexa interviews you for the gaps, then emits a 6-component skill (intent + inputs + procedure + decision points + output contract + outcome signal) you can invoke anytime, share with a domain-gated link, or post publicly.
+```bash
+curl -fsSL https://core.implexa.ai/install.sh | bash
+```
 
-**Free plan ships with credits.** No credit card required.
+One paste, ~30 seconds. Browser opens for sign-up / sign-in, you approve, terminal finishes the rest. Installs the API key, hooks, plugin, and MCP wiring — all in one go.
+
+Free forever. No credit card. MIT-licensed.
+
+[**implexa.ai**](https://implexa.ai) · [Public skills](https://app.implexa.ai/skills) · [Dashboard](https://app.implexa.ai)
 
 ---
 
-## Quick start (3 minutes)
+## What it does
+
+`/implexa:record-skill` is the killer feature. Demonstrate any workflow once. Implexa captures every tool call + conversation turn, runs a structured Haiku-powered interview to lock the intent, and emits a **6-component skill** (intent + inputs + procedure + decision points + output contract + outcome signal) that's:
+
+- **Replayable** — `/implexa:run "the prospecting one"` fuzzy-matches your library and re-executes
+- **Measurable** — outcomes attribute back via last-touch within a 30-day window
+- **Portable** — works across Claude Code CLI, Claude Code Desktop, Cowork, and Chat
+- **Shareable** — team-gated (same email domain) or public links; public shares unlock Founding Creator status
+
+---
+
+## Quick start
 
 ### 1. Install
 
 ```bash
-claude plugin install implexa
+curl -fsSL https://core.implexa.ai/install.sh | bash
 ```
 
-### 2. Get an API key
+Works on macOS, Linux, and Windows (WSL). Browser opens to approve the install — once you click Approve, the terminal finishes installing the API key, hooks, plugin, and MCP wiring.
 
-1. Sign up at **[implexa.ai/signup](https://implexa.ai/signup)** (Google / Microsoft SSO, or email).
-2. Open **Settings → API Keys**.
-3. Click **New key**, name it (e.g. "Claude Code"), copy the value — it shows **only once**.
+### 2. Verify
 
-### 3. Set it as an env var
+Launch Claude Code:
 
-**zsh** (macOS default):
 ```bash
-echo 'export IMPLEXA_API_KEY="imp_live_..."' >> ~/.zshrc
-source ~/.zshrc
+claude
 ```
 
-**bash**:
-```bash
-echo 'export IMPLEXA_API_KEY="imp_live_..."' >> ~/.bashrc
-source ~/.bashrc
+Verify the connection:
+
+```
+/implexa:setup
 ```
 
-**fish**:
-```bash
-set -Ux IMPLEXA_API_KEY "imp_live_..."
-```
+You should see `✅ You're connected to Implexa` with your email + plan + capture quota.
 
-### 4. Record your first skill
-
-In Claude Code:
+### 3. Record your first skill
 
 ```
 /implexa:record-skill
 ```
 
-Tell Claude what you're about to do, then do it. Hit "stop" when finished. Implexa interviews you for 2–4 questions, then saves the skill. Total time: ~3 minutes.
+Tell Claude what you're about to demonstrate, then do your work normally. Implexa watches in the background. When you're done, it asks 2–4 questions to fill in gaps, then saves the skill. Total time: ~3 minutes.
+
+### 4. Re-run anywhere
+
+```
+/implexa:run "the X one"
+```
+
+Fuzzy match against your library. Claude picks the right skill and applies it with your current context.
+
+---
+
+## The Skill Graph flywheel
+
+Every team has a few power users with integrations already wired up (HubSpot, Salesforce, Linear, GitHub, Apollo, Coresignal, etc.). Implexa turns their expertise into portable skills the rest of the org can invoke.
+
+```
+1. Power user connects tools to Claude
+   ↓
+2. They record a skill that uses those tools
+   ↓
+3. Implexa captures the tool chain in the skill
+   ↓
+4. A teammate runs the skill via /implexa:run
+   ↓
+5. If the teammate is missing a required tool, Implexa surfaces an install hint
+   ↓
+6. They install. Run the skill. Get the outcome.
+```
+
+Everyone in the org now has the power user's stack — without having to discover, evaluate, and learn each integration. Power users get rewarded with **Founding Creator** status: unlimited captures + a free Pro seat for life.
 
 ---
 
 ## What's in the plugin
 
-### Skill recording flow
-| Skill | What it does |
-|---|---|
-| `/implexa:record-skill` | The killer feature — demonstrate once → structured skill |
-| `/implexa:save-this` | Post-hoc capture of work you just did (no demo flow) |
+### Recording + running
 
-### Browse + invoke
 | Skill | What it does |
 |---|---|
-| `/implexa:org-skills` | List your org's saved skills, invoke any |
-| `/implexa:playbooks` | Browse the horizontal Playbook library |
+| `/implexa:record-skill` | The killer feature — demonstrate once → 6-component skill |
+| `/implexa:save-this` | Post-hoc capture of work you just did (no demo flow) |
+| `/implexa:run` | Fuzzy-match + execute a skill from your library |
+| `/implexa:my-skills` | Browse your personal library |
+| `/implexa:org-skills` | Browse your org's shared library |
+| `/implexa:playbooks` | Browse the 30 base Playbooks (sales, recruiting, finance, etc.) |
 | `/implexa:fork` | Clone any skill into your org for customization |
 
-### Viral mechanics
-| Skill | What it does |
-|---|---|
-| `/implexa:share-this` | Generate a share link — team-gated (same email domain) or public |
-| `/implexa:skill-roi` | Outcome attribution rollup: which skills are working |
+### Sharing + measurement
 
-### Onboarding + admin
 | Skill | What it does |
 |---|---|
-| `/implexa:get-me-started` | First-run activation — instant first skill |
-| `/implexa:credits` | Check credit balance + plan |
-| `/implexa:setup` | Connect integrations (email, calendar, CRM) |
-| `/implexa:help` | Onboarding + FAQ |
+| `/implexa:share-this` | Generate a share link — team-gated or public |
+| `/implexa:skill-roi` | Outcome attribution: which skills are driving real outcomes |
+
+### Setup + admin
+
+| Skill | What it does |
+|---|---|
+| `/implexa:setup` | Verify connection + show authenticated identity + quota |
+| `/implexa:setup-hooks` | Re-run the hooks installer if conversation capture isn't working |
+| `/implexa:get-me-started` | First-run activation — install first skill |
+| `/implexa:help` | FAQ + onboarding |
 
 ---
 
-## What's under the hood
+## Under the hood
 
-- **~26 MCP tools** — Skill Graph (11), external data fetching (14: Fiber + Coresignal + Apollo), draft_message (Anthropic-direct)
-- **Three capture surfaces** during recording: every MCP tool call (auto), non-tool actions you log via `record_demo_note` (manual), full host-side conversation transcript (UserPromptSubmit + Stop + PostToolUse hooks)
+- **~30 MCP tools** — Skill Graph (11), external data fetching (14: Fiber AI + Coresignal + Apollo), `draft_message`, `revoke_share_link`, `get_credits`
+- **Three capture surfaces** during recording:
+  - Every MCP tool call (auto, via `PostToolUse` hook)
+  - Non-tool actions you log via `record_demo_note` (manual)
+  - Full host-side conversation transcript (via `UserPromptSubmit` + `Stop` hooks)
+- **6-component skill structure** — intent, inputs, procedure, decision points, output contract, outcome signal — generated by Haiku from the captured trace + your interview answers
 - **Domain-gated sharing** — team links only let users on your email domain install
-- **Outcome attribution** — when a skill drives a real-world outcome (deal closed, meeting booked, candidate placed), it attributes back to the skill via last-touch
-- **Renders wherever the LLM lives** — Claude Code, Claude Desktop, Claude.ai, Cursor, any MCP client
+- **Outcome attribution** — last-touch within a 30-day window from CRM/ATS/calendar events
+- **Runtime hint propagation** — `apply_org_skill` returns the skill's required tool chain so consumers get a clear "install this integration" hint if a tool the skill needs isn't available in their session
+- **Routine portability** — skills that use Claude Code's `RemoteTrigger` to set up daily schedules carry the cron + prompt spec; forkers get the schedule wired automatically (no manual `/schedule` step)
+- **PII scrubbing** — input + output passes through a dedicated scrubber before LLM calls and persistence
+- **Renders wherever the LLM lives** — Claude Code, Claude Desktop, Cowork, Claude chat (via Custom Connector), Cursor, any MCP client
+
+---
+
+## Installation paths
+
+### Universal (recommended)
+```bash
+curl -fsSL https://core.implexa.ai/install.sh | bash
+```
+Browser-based device-auth flow. Works on macOS, Linux, Windows (WSL). No tokens, no manual key handling.
+
+### Visual install (Claude Code Desktop / Cowork)
+Customize panel → Personal plugins → + Create plugin → **Add marketplace**:
+```
+https://github.com/Implexa-Inc/implexa-claude-plugin
+```
+
+### Claude chat (Desktop) — Custom Connector URL
+Customize → Connectors → + → Add custom connector:
+```
+https://core.implexa.ai/api/v2/mcp?api_key=YOUR_KEY
+```
+(Sign up to generate your API key — this is the only surface that still needs a manually-pasted key.)
+
+### Uninstall / reset
+
+```bash
+curl -fsSL https://core.implexa.ai/uninstall.sh | bash
+```
+Idempotent. Reverses everything the installer set up (config files, hooks, MCP wiring, plugin, launchctl env vars). Doesn't revoke cloud API keys — do that at [Connected installs](https://app.implexa.ai/settings/api-keys).
 
 ---
 
 ## Tech under the hood
 
-- Streamable HTTP MCP transport
-- Anthropic SDK (Haiku for skill authoring + interview generation)
-- Supabase (Postgres + Auth + Storage + Realtime)
-- Fiber AI / Coresignal / Apollo for external data v1
-- Exa + Browserbase coming in v2
+- **MCP transport**: Streamable HTTP
+- **Skill authoring**: Anthropic SDK (Claude Haiku for interview question generation + skill synthesis)
+- **Backend**: Node.js + Express + Supabase (Postgres + Auth + RLS + Realtime)
+- **External data**: Fiber AI, Coresignal, Apollo
+- **Hooks**: bash-based event handler at `~/.claude/implexa-hook.sh`, sourced from `~/.claude/implexa.env`
+- **Plugin distribution**: marketplace clone to `~/.claude/plugins/marketplaces/implexa/`, copied to versioned cache path
+- **Auth**: RFC 8628-style device-flow with 10-min single-use tokens; backend mints fresh API keys on approval
+
+---
+
+## Pricing
+
+- **Free forever** — 5 skill captures / month, unlimited skill runs, public sharing
+- **Founding Creator** (free perk) — share 1 public skill, unlock unlimited captures + a free Pro seat for life
+- **Pro** — $19/mo or $190/year — unlimited captures, team library, audit log, SSO
 
 ---
 
 ## License
 
-MIT
+MIT. The plugin source, install scripts, and capture pipeline are all open source. Backend services + the hosted dashboard are SaaS.
+
+---
+
+## Links
+
+- 🌐 [implexa.ai](https://implexa.ai) — marketing site
+- 🎯 [app.implexa.ai/skills](https://app.implexa.ai/skills) — public skills directory
+- 📊 [app.implexa.ai/install](https://app.implexa.ai/install) — full install guide (logged-in)
+- 💬 [hello@implexa.ai](mailto:hello@implexa.ai) — questions, feedback, bug reports
