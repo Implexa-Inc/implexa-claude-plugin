@@ -24,15 +24,18 @@ If you can't tell which branch from the response, default to **Branch B** — th
 
 ## Branch A — "You're set up" ✅
 
-Show:
+Show (use values from the `get_credits` response):
 
 > ### ✅ You're connected to Implexa
 >
-> - **Plan**: `<plan from get_credits>` (e.g. Free, Pro, Enterprise)
-> - **Skills created this month**: `<created>` / `<quota>`
-> - **Total skills in your library**: `<library_count>` (if available)
+> - **Logged in as**: `<email from get_credits>` (e.g. ashish@implexa.ai)
+> - **Organization**: `<organizationName from get_credits>` (skip if null)
+> - **Plan**: `<planLabel>` (e.g. Free, Pro, Enterprise)
+> - **Skills created this month**: `<skillCreation.capturedThisMonth>` / `<skillCreation.limit>` (or "unlimited" when `skillCreation.unlimited` is true)
 >
 > Everything looks good. You can record your first skill with `/implexa:record-skill`, or see what else is possible with `/implexa:help`.
+
+**Why surface the email**: confirms which account is authenticated — catches the "wait, am I on my personal or work account?" class of confusion across multiple devices / shared machines. If the email looks wrong, the user can re-run the install script with a different login. Don't omit it — this is a critical confirmation field.
 
 End with **"What's next?"** suggestions:
 
