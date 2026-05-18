@@ -101,17 +101,27 @@ Call **`interview_for_skill`** with:
 
 You'll get back 3-8 structured questions, each typed (decision / output / signal / edge_case / general). Read them yourself first.
 
-### Step 3d — Ask the user the questions ONE AT A TIME
+### Step 3d — Ask the user the questions ONE AT A TIME (use AskUserQuestion with the supplied options)
 
-Don't dump all 8 at once. Ask one. Wait. After each answer, call **`interview_for_skill`** with:
+Every question from Step 3c ships with a `question.options` array of 3-4 plausible answers the user can pick from. Use the **`AskUserQuestion`** tool to render them — that way the user clicks instead of typing, and the experience is consistent across every captured skill.
+
+For each question, call **`AskUserQuestion`** with:
+- `question`: the question's `question` field verbatim
+- `header`: a short chip label derived from `questionType` (e.g. "Output", "Edge case", "Signal", "Decision", "Context")
+- `multiSelect`: `false` (default — only `true` if the question explicitly asks for multiple selections)
+- `options`: map each item in `question.options` to `{ label: <option.label>, description: <option.description> }`. **Append " (Recommended)" to the FIRST option's label** — that's the Haiku-suggested default based on the trace.
+
+Do NOT add an "Other" option yourself — `AskUserQuestion` always lets the user provide custom free-text input, so the escape hatch is automatic.
+
+**Ask one question at a time.** Wait for the answer, then call **`interview_for_skill`** with:
 - `demoId`
 - `step: "answer"`
 - `question`: the verbatim question text
-- `answer`: the user's reply
+- `answer`: the option label the user picked, or their free-text response if they chose Other
 
-This records the answer in the demo session.
+Then proceed to the next question.
 
-If the user gets impatient ("just do it"), STOP and move to finalize — better to ship with partial answers than annoy the user out of the flow.
+If the user gets impatient ("just do it", "enough", "save it"), STOP and move to finalize — better to ship with partial answers than annoy the user out of the flow.
 
 ### Step 3e — Finalize the skill
 
