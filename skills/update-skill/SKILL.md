@@ -1,8 +1,8 @@
 ---
-description: Add a step (or refine behavior) on an existing skill by re-recording. Use when the user says "improve my X skill", "update my X skill", "add a step to my X skill", "re-record my X skill", "refine my X skill", "modify my Y workflow", "extend my Z skill", or invokes /implexa:improve. This is the RE-RECORD path — the user demonstrates the new behavior live and the existing skill's content gets MERGED with the new demonstration (existing steps preserved, new step integrated, error handling appended). For text-only changes (typos, renames, copy polish), use update_org_skill instead.
+description: Update an existing skill by re-recording — add a step, refine a branch, or extend the behavior. Use when the user says "update my X skill", "improve my X skill", "add a step to my X skill", "re-record my X skill", "refine my X skill", "modify my Y workflow", "extend my Z skill", or invokes /implexa:update-skill. This is the RE-RECORD path — the user demonstrates the new behavior live and the existing skill's content gets MERGED with the new demonstration (existing steps preserved, new step integrated, error handling appended). For text-only changes (typos, renames, copy polish), use update_org_skill instead.
 ---
 
-# Improve an existing skill (re-record + merge)
+# Update an existing skill (re-record + merge)
 
 The user wants to add a step, refine a branch, or extend an existing skill. **This is the re-record path** — they demonstrate the new behavior live, and the existing SKILL.md gets MERGED with the new demonstration (not replaced). Existing procedure preserved, new step woven in, error handling appended.
 
@@ -140,20 +140,20 @@ Map the reply to `create_share_link({skillSlug, shareMode})` as usual.
 
 ## Notes for the model
 
-- **This is the BEHAVIORAL update path.** Use `/implexa:improve` for: adding a step, refining tool calls, adding a branch, changing an output format that involves new tool calls. Use `update_org_skill` for: typos, renames, copy polish.
+- **This is the BEHAVIORAL update path.** Use `/implexa:update-skill` for: adding a step, refining tool calls, adding a branch, changing an output format that involves new tool calls. Use `update_org_skill` for: typos, renames, copy polish.
 - **`replacingSkillId` is REQUIRED at finalize.** Without it, the new demonstration creates a SEPARATE new skill instead of updating the target. Double-check before calling finalize.
 - **Don't pass `finalName` / `finalIntent` / `scope` / `activate` at finalize** unless the user explicitly asked to change those. The merge preserves them by default.
 - **Don't ask about scope or sharing during the flow** — the existing skill already has its scope decided. The merge maintains it.
 - **The demonstration should focus on the NEW behavior**, not re-running the entire skill. The user's mental model is "add this step" — let them demo ONLY that step. The merge will integrate it correctly.
 - **If the user accidentally demonstrated the WHOLE workflow (existing + new)** — that's fine, merge still works (Haiku is told to preserve existing structure unless the new demo contradicts it).
-- **If the user tries to /implexa:improve a SYSTEM Playbook or another org's universal skill** — block. Tell them: *"That's not in your org. Fork it first via `/implexa:fork`, then improve your copy."*
+- **If the user tries to /implexa:update-skill a SYSTEM Playbook or another org's universal skill** — block. Tell them: *"That's not in your org. Fork it first via `/implexa:fork`, then improve your copy."*
 
 ## Error handling
 
 | Error | Diagnosis | Tell the user |
 |---|---|---|
 | `list_org_skills` returns 0 in their library, org, AND universal | Skill doesn't exist anywhere | "No skill matches '<query>'. Want to capture this as a NEW skill instead? Run `/implexa:record-skill`." |
-| User tries to improve a `scope=system` skill | System Playbooks are immutable | "System Playbooks can't be directly improved. Fork it via `/implexa:fork`, then `/implexa:improve` your copy." |
+| User tries to improve a `scope=system` skill | System Playbooks are immutable | "System Playbooks can't be directly improved. Fork it via `/implexa:fork`, then `/implexa:update-skill` your copy." |
 | `interview_for_skill` step='finalize' returns `quota_exceeded` | First edit to a fork on Free plan counts toward 5/month cap | "This is your first edit to a fork, which counts as 1 capture. You've hit your monthly cap. Upgrade at https://app.implexa.ai/pricing or wait for the 1st of the month." |
 | `interview_for_skill` returns `replacingSkill not found or no permission` | Bad skillId or skill belongs to a different org | "I can't update that skill — it's not in your org or doesn't exist. Check `/implexa:my-skills` to see what you have." |
 | Demo ends with 0 tool calls + 0 conversation turns | Recording didn't capture anything | "I didn't see any tool calls during the recording. The merge would have nothing to integrate. Want to try again, or cancel?" |

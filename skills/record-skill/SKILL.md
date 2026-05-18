@@ -12,13 +12,13 @@ This is a 3-phase flow with a branch upfront (new vs update existing).
 
 Before starting the recording, find out which path this is. The flow + payload differ at the finalize step.
 
-**Note:** if the user clearly intends to UPDATE an existing skill, prefer `/implexa:improve` as the entry point — it's purpose-built for that flow and skips the new-vs-update branching. The Phase 0 below is for cases where the user invoked `/implexa:record-skill` directly and the intent is ambiguous.
+**Note:** if the user clearly intends to UPDATE an existing skill, prefer `/implexa:update-skill` as the entry point — it's purpose-built for that flow and skips the new-vs-update branching. The Phase 0 below is for cases where the user invoked `/implexa:record-skill` directly and the intent is ambiguous.
 
 ### When to ask explicitly
 
 Ask only if you don't already know from the user's phrasing. **Don't ask if it's obvious**:
 - *"record a skill for X"*, *"watch me do X"*, *"capture this"* → **new skill**. Skip to Phase 1.
-- *"update my X skill by re-recording"*, *"add a step to my prospecting skill via demo"*, *"improve my hackernews drafter"*, *"re-record my Y skill with one more step"* → **update existing**. Continue this step (or redirect to `/implexa:improve` if the user prefers a guided flow).
+- *"update my X skill by re-recording"*, *"add a step to my prospecting skill via demo"*, *"improve my hackernews drafter"*, *"re-record my Y skill with one more step"* → **update existing**. Continue this step (or redirect to `/implexa:update-skill` if the user prefers a guided flow).
 - Ambiguous (*"record a skill that adds a step to X"*) → ask:
 
 > *"Is this a fresh new skill, or are you re-recording into an existing one (e.g. adding a step to a skill you already have)?"*
