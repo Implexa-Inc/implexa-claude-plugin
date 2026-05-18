@@ -12,6 +12,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.6.0] — 2026-05-18
+
+Pre-launch polish. The Skill Graph gets a proper update flow, the install
+flow gets a universal `curl install.sh | bash` entry point with device-auth,
+and a handful of fuzzy-match / discoverability fixes land. This is the last
+plugin release before 1.0.0 — install + update paths are stable from here.
+
+### Added
+- **`/implexa:update-skill` slash command** — dedicated entry point for
+  updating an existing skill by re-recording. Demonstrate the new behavior
+  live; the existing SKILL.md gets MERGED with the new demonstration
+  (existing steps preserved, new step integrated, error rows appended).
+  For text-only changes (typos, renames, copy polish), continue using
+  `update_org_skill` (Claude routes there automatically).
+- **`/implexa:record-skill` Phase 0 (new vs update branch)** — when
+  invoked, asks whether this is a new skill or an update, and routes to
+  the right finalize path (`replacingSkillId` set or not). Cross-references
+  `/implexa:update-skill` as the preferred entry for the update case.
+- **`/implexa:run` + `/implexa:fork` fuzzy-match the public library** —
+  when the user's own + org library has no match for their query, the
+  run/fork commands expand the search to the public/Trending Globally
+  library (via the new `includeUniversal: true` flag on `list_org_skills`).
+  If a public skill matches, the user can install + run (or fork
+  cross-org without needing a share token).
+- **`/implexa:setup` Branch A surfaces authenticated identity** — the
+  green "you're connected" confirmation now shows the email + organization
+  + plan, so users can verify which account is currently authenticated
+  (catches the "wait, am I on my personal or work account?" bug class).
+- **Interview options on every question** — the post-demo interview now
+  ships 3-4 clickable options per question (rendered via AskUserQuestion)
+  instead of free-text. Consistent UX across every captured skill;
+  "Other" escape hatch always available for custom answers.
+
+### Changed
+- **MERGE MODE for re-record into existing skill** — when
+  `/implexa:update-skill` finalizes with `replacingSkillId`, the backend
+  now passes the existing SKILL.md to the Haiku author with explicit
+  "preserve existing structure, integrate the new demo" instructions.
+  Previously hard-replaced (dropped all existing steps not re-demoed).
+- **Routine capture from `RemoteTrigger` calls** — skills demonstrated
+  with a scheduled-routine setup now bake the cron + prompt spec into
+  the SKILL.md as a "Step 0 — set up the daily routine (one-time)"
+  section, so forkers inherit the schedule automatically.
+- **README rewritten** to mirror the new universal-install positioning
+  and the "what's open vs hosted" model (Stripe-CLI / Supabase-style).
+- **`update_org_skill` tool description** — explicitly routes behavioral
+  changes (new steps, new tool calls, new branches) to
+  `/implexa:update-skill` instead of text-editing. Use `update_org_skill`
+  for typos, renames, copy polish, restructuring; everything else goes
+  through re-record.
+
+### Fixed
+- **LICENSE copyright** corrected from Revenoid Inc → Implexa Inc.
+
+### Backend-only changes (no plugin upgrade required to receive these)
+- Universal `curl -fsSL https://core.implexa.ai/install.sh | bash` install
+  with device-auth (RFC 8628) — works for cold visitors with no token,
+  signs them up via browser, auto-installs the plugin + hooks + API key.
+- `/api/v2/skills/public` + `/api/v2/skills/stats` endpoints for the
+  marketing site's Trending Globally feed.
+- Undo Public — revoking a public share now also reverts the skill's
+  scope from `universal` back to its previous state (org or private),
+  removing it from Trending Globally + the public library.
+- Dashboard `/skills/[slug]` page fix — was 404-ing for private skills
+  owned by the viewer (used `session.user.id` as an org filter, which
+  never matched an org UUID).
+
+### How existing users get this update
+
+Most of you have `autoUpdate: true` set in `~/.claude/plugins/known_marketplaces.json`,
+so Claude Code refreshes the marketplace clone on launch. The cache directory
+uses the version number, so the new 0.6.0 cache will be populated on next
+Claude Code launch. If you don't see the new `/implexa:update-skill` slash
+command in autocomplete after a fresh Cmd+Q + relaunch, force-refresh by
+re-running the install script:
+
+```bash
+curl -fsSL https://core.implexa.ai/install.sh | bash
+```
+
+It's idempotent and runs in seconds.
+
+---
+
 ## [0.5.0] — 2026-05-15
 
 Adds the explicit "use a skill" entry point. Before this release, skill
