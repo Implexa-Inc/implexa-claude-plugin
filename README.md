@@ -1,6 +1,10 @@
-# Implexa — Record any Claude workflow once. Run it forever.
+# Implexa — The skill graph for AI work.
 
-> **One demo. Six-component skill. Portable across Claude Code, Cowork, and Chat. Your team's best workflow becomes everyone's reusable skill.**
+> **Demonstrate any workflow once. Capture decision traces. Share with your team. Measure what actually worked. Compatible with the [agentskills.io](https://agentskills.io) open standard — your skills run in Claude Code, Cursor, Gemini CLI, and 30+ more agents.**
+
+[![Built on agentskills.io](https://img.shields.io/badge/Built%20on-agentskills.io-22c55e?style=flat-square)](https://agentskills.io)
+[![MIT plugin](https://img.shields.io/badge/Plugin-MIT-blue?style=flat-square)](https://github.com/Implexa-Inc/implexa-claude-plugin/blob/main/LICENSE)
+[![Free forever](https://img.shields.io/badge/Free%20tier-Forever-orange?style=flat-square)](https://implexa.ai)
 
 ```bash
 curl -fsSL https://core.implexa.ai/install.sh | bash
@@ -8,9 +12,9 @@ curl -fsSL https://core.implexa.ai/install.sh | bash
 
 One paste, ~30 seconds. Browser opens for sign-up / sign-in, you approve, terminal finishes the rest. Installs the API key, hooks, plugin, and MCP wiring — all in one go.
 
-Free forever. No credit card. MIT-licensed.
+Free forever. No credit card. MIT-licensed plugin · hosted service.
 
-[**implexa.ai**](https://implexa.ai) · [Public skills](https://app.implexa.ai/skills) · [Dashboard](https://app.implexa.ai)
+[**implexa.ai**](https://implexa.ai) · [Public skills](https://app.implexa.ai/skills) · [Dashboard](https://app.implexa.ai) · [Skill format docs](https://implexa.ai/claude-skills)
 
 ---
 
