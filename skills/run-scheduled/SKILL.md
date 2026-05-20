@@ -48,6 +48,49 @@ If the underlying skill is itself an orchestrator (chains multiple sub-skills vi
 
 If execution throws or returns unusable output, mark status as `failed` and pass the failure summary as `outputMarkdown` (so the user sees what went wrong in /runs).
 
+## Step 2.5 — Deliver to Slack via the Slack plugin (only when destination.type === "slack-plugin")
+
+**Skip this step entirely if destination.type is "dashboard" or "slack-webhook".** Only run when the destination from Step 1 is `{ type: "slack-plugin", target: "<channel>" }`.
+
+Convert the markdown output to Slack `mrkdwn` format with a one-pass rewrite (Slack uses single-asterisk bold, not double):
+
+- `**bold**` → `*bold*`
+- `## Heading` → `*Heading*` (Slack has no native h2; bold is the convention)
+- `### Subheading` → `*Subheading*`
+- `[text](url)` → `<url|text>`
+
+Bullets, inline code, and code blocks pass through unchanged.
+
+Then prepend a small headline so the channel sees what skill ran:
+
+```
+*<skill_slug>* — <YYYY-MM-DD>
+
+<converted markdown body>
+```
+
+Call **`mcp__plugin_engineering_slack__send_message`** with:
+
+- `channel`: the destination.target from Step 1 (the channel name or ID, like `"#standup"` or `"C012345"`)
+- `text`: the formatted body above
+- `mrkdwn`: `true` (if the tool exposes this flag)
+
+Capture the result into a `pluginDelivery` object:
+
+```jsonc
+{
+  "delivered": true,                // false if the tool returned an error
+  "channel":   "#standup",          // echo back the target so /runs shows it
+  "messageTs": "<ts>"               // Slack's message timestamp, if returned
+  // OR on failure:
+  "error":     "<error string>"
+}
+```
+
+You will pass this into the next step.
+
+**If `mcp__plugin_engineering_slack__send_message` is not available** (the Slack plugin isn't installed in this Claude Code session), build a `pluginDelivery` of `{ delivered: false, error: "Slack plugin not available in this session" }` and continue to Step 3. The run is still persisted; the user will see the failure receipt in /runs and can re-deliver or fix the plugin.
+
 ## Step 3 — Persist + deliver
 
 Call **`record_scheduled_run`** with:
@@ -56,15 +99,20 @@ Call **`record_scheduled_run`** with:
 {
   "scheduledSkillId": "<uuid from step 1>",
   "outputMarkdown":   "<the markdown produced in step 2>",
-  "status":           "completed"  // or "partial" / "failed"
+  "status":           "completed",  // or "partial" / "failed"
   // "durationMs":     <ms wall-clock from step 1 to here, optional>
-  // "orchestrationId": "<uuid if step 2 used orchestrate_skills>"
+  // "orchestrationId": "<uuid if step 2 used orchestrate_skills>",
+  // "pluginDelivery":  <the receipt object from step 2.5, ONLY when destination=slack-plugin>
 }
 ```
 
+**`pluginDelivery` is REQUIRED when destination.type=`slack-plugin`** and forbidden otherwise. The backend uses it to record the slack delivery receipt on the skill_runs row.
+
 The tool:
-- Inserts a `skill_runs` row (always, even if delivery fails downstream)
-- Posts to the configured destination (Slack webhook if set) — best-effort
+- Inserts a `skill_runs` row (always, even if delivery failed at step 2.5)
+- For destination=slack-webhook: backend POSTs to the webhook URL (here, server-side)
+- For destination=slack-plugin: backend records the agent-side delivery receipt from `pluginDelivery`
+- For destination=dashboard: no external delivery, just persist
 - Bumps the parent `scheduled_skills.run_count` + `last_run_at`
 
 Returns `{ ok: true, runId, status, ranAt, delivery, nextAction }`. The `delivery` object tells you whether Slack succeeded; the `nextAction` string is the line you should surface in the (background) task log.

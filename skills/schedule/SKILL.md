@@ -25,10 +25,26 @@ Extract three things from the user's free-form input:
   - raw cron: `"55 8 * * *"`
 
 - **`destination`** (optional, default `{type:"dashboard"}`):
-  - If the user mentioned Slack ("post to slack", "send to #standup", "slack webhook"), ask for the webhook URL if they didn't paste one. Set `destination = { type: "slack", target: "<webhook-url>" }`.
-  - Otherwise default to `{ type: "dashboard" }` — output lands at app.implexa.ai/runs.
 
-If the user gave only the skill slug + schedule without a destination, **do not ask** for Slack details. Default to dashboard. They can add Slack later by editing the schedule.
+  Three options. Pick based on what the user said:
+
+  **(a) `{ type: "dashboard" }`** — default. Output lands at app.implexa.ai/runs.
+
+  **(b) `{ type: "slack-plugin", target: "<channel>" }`** — RECOMMENDED when the user wants Slack delivery AND `mcp__plugin_engineering_slack__send_message` is available (i.e. the user has the Claude Code Slack plugin connected — check via `mcp__plugin_engineering_slack__authenticate` if unsure). Zero setup; Claude posts to the channel directly in-session when the schedule fires.
+
+  Target is the channel: `"#standup"`, `"#general"`, a channel ID like `"C0123456789"`, or a DM ID like `"D012345678"`.
+
+  **(c) `{ type: "slack-webhook", target: "<webhook-url>" }`** — fallback when the user has a Slack incoming-webhook URL ready (e.g. they pasted one, or they're using a different agent that doesn't have a Slack plugin). The Implexa backend POSTs to the URL server-side; works without Claude in the loop.
+
+  ## How to choose between slack-plugin and slack-webhook
+
+  1. If the user pastes a `https://hooks.slack.com/...` URL → **slack-webhook**.
+  2. If the user gives a channel name (with or without #) → **slack-plugin**. Confirm by calling `mcp__plugin_engineering_slack__authenticate` first to ensure the plugin is connected. If not connected, prompt the user to connect via `/mcp` first, OR offer to fall back to slack-webhook with a URL.
+  3. If the user just says "slack" without specifying → ask: "Channel name (#standup, uses your Slack plugin) or webhook URL (works without the plugin)?"
+
+  ## Default destination
+
+  If the user gave only the skill slug + schedule without mentioning Slack, **do not ask** for Slack details. Default to dashboard. They can add Slack later by re-running /implexa:schedule with the same args + a destination.
 
 ## Step 2 — Call `schedule_skill`
 
@@ -39,7 +55,8 @@ Call `schedule_skill` with the parsed args:
   "skillSlug":   "daily-ai-skills-pulse",
   "scheduleNl": "daily at 8:55am",
   "destination": { "type": "dashboard" }
-  // OR { "type": "slack", "target": "https://hooks.slack.com/services/T.../B.../XXX" }
+  // OR { "type": "slack-plugin",  "target": "#standup" }
+  // OR { "type": "slack-webhook", "target": "https://hooks.slack.com/services/T.../B.../XXX" }
 }
 ```
 
@@ -88,7 +105,8 @@ Render a concise confirmation:
 
 Where `<destination summary>` is:
 - `Implexa dashboard only` (default)
-- `Slack channel <inferred from webhook> + Implexa dashboard` (when Slack configured)
+- `Slack <channel> + Implexa dashboard` (when `slack-plugin` configured — echo the channel name back)
+- `Slack (via webhook) + Implexa dashboard` (when `slack-webhook` configured — do NOT echo the webhook URL)
 
 Keep it ≤ 4 lines. Do not echo the cron expression unless the user asked for it.
 
@@ -112,7 +130,9 @@ Keep it ≤ 4 lines. Do not echo the cron expression unless the user asked for i
 |---|---|---|
 | `schedule_skill` returns ok=false with "Skill not found" | The skill isn't in the user's library | "I couldn't find `<slug>` in your library. Fork it from a Playbook or install via a share link, then re-run /implexa:schedule." |
 | `schedule_skill` returns ok=false with "Could not parse schedule" | NL parser couldn't match a pattern | Echo the supported patterns from the error message. Ask the user to rephrase. |
-| `schedule_skill` returns ok=false with "Slack destination requires..." | Webhook URL invalid or missing | Ask the user to paste a real `hooks.slack.com/services/...` URL or drop the Slack destination. |
+| `schedule_skill` returns ok=false with "slack-webhook destination requires..." | Webhook URL invalid or missing | Ask the user to paste a real `hooks.slack.com/services/...` URL, OR switch to slack-plugin if they meant a channel name. |
+| `schedule_skill` returns ok=false with "slack-plugin destination requires..." | Channel target missing or too short | Ask the user for the channel name (e.g. `#standup`) or paste a channel ID. |
+| User wants slack-plugin but `mcp__plugin_engineering_slack__authenticate` fails | Slack plugin not connected to Claude Code | Tell the user: "Your Slack plugin isn't connected. Run `/mcp` in Claude Code and authenticate the Slack plugin, OR fall back to a `slack-webhook` destination with a `hooks.slack.com` URL." |
 | `mcp__scheduled-tasks__create_scheduled_task` is not available | Claude Code version doesn't expose scheduled-tasks MCP | Tell the user: "The Implexa manifest is saved (id=<id>), but Claude Code's scheduled-tasks MCP isn't available in this session. Run /implexa:run-scheduled <id> manually for now, or upgrade Claude Code and re-register." |
 | `create_scheduled_task` errors with permission denied | User hasn't granted Claude scheduled-tasks permission | Tell the user: "Claude Code needs permission to create scheduled tasks. Grant it via /mcp, then re-run /implexa:schedule." |
 | Schedule registered but later runs never fire | Cron task lost in Claude Code restart, or user revoked scheduled-tasks permission | Tell the user to check /mcp for the scheduled-tasks server status, then re-run /implexa:schedule to re-register. |

@@ -12,6 +12,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.8.1] — 2026-05-20
+
+Adds **`slack-plugin` destination type** to the scheduler. Recommended path
+for Claude Code users — zero setup if `mcp__plugin_engineering_slack` is
+already connected. Backend webhook path (`slack-webhook`) stays as the
+cross-vendor fallback for users on other agents.
+
+### Changed
+- `/implexa:schedule` slash command now disambiguates Slack intent. If the
+  user types a channel name (`#standup`) → `slack-plugin`. If they paste a
+  `hooks.slack.com` URL → `slack-webhook`. Bare "slack" → asks.
+- `/implexa:run-scheduled` adds Step 2.5: when destination=slack-plugin,
+  converts markdown → Slack mrkdwn in-skill and calls
+  `mcp__plugin_engineering_slack__send_message` with the channel + body,
+  then passes the delivery receipt to `record_scheduled_run` as
+  `pluginDelivery`.
+- Backend `destination.type` enum: `'slack'` renamed to `'slack-webhook'`,
+  `'slack-plugin'` added. Both share the unified `delivery.slack` jsonb
+  receipt on `skill_runs` (with `via: webhook|plugin` to disambiguate).
+- Dashboard `/scheduled` + `/runs` pages show the destination route
+  ("Slack #standup + dashboard" vs "Slack (via webhook) + dashboard").
+
+No migration needed — `destination` is a free-form jsonb column. No live
+slack-destinated rows existed when this shipped (v0.8.0 had been live for
+~5 min with no Slack users).
+
 ## [0.8.0] — 2026-05-20
 
 Adds the **scheduler** surface. `/implexa:schedule` lets users register any
