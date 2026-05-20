@@ -151,6 +151,50 @@ Show the user:
 
 If status is 'draft', ask: *"Activate this org-wide so anyone can use it? Reply yes / not yet / let me edit first."*
 
+### Step 3f.5 — Offer to schedule it
+
+The finalize response includes a **`recommendedCadences`** field — 4 ranked cadences inferred from the skill's intent + tools + content, plus a "skip" hint. Render this as a numbered list and let the user pick one. This is where most users will decide whether the skill becomes a daily habit or stays ad-hoc.
+
+Use **`AskUserQuestion`** with:
+- `question`: *"want to run this on a schedule? i can wire it up now."*
+- `header`: `"Schedule"`
+- `multiSelect`: `false`
+- `options`: 4 entries from `recommendedCadences.options` (label = `option.label`; append `" (Recommended)"` to the FIRST option only) PLUS a final option `{ label: "Skip - ad-hoc only", description: "you can schedule it anytime with /implexa:schedule" }`. The user can also type a custom schedule like "every 4 hours" or "daily at 6pm" via the Other free-text input.
+
+Map the reply:
+
+**If the user picks one of the 4 cadences (or types a custom schedule):**
+
+1. Call **`schedule_skill`** with:
+   ```jsonc
+   {
+     "skillSlug":   "<slug from finalize>",
+     "scheduleNl":  "<their pick — e.g. 'daily at 8:55am' — or their free-text>",
+     "destination": { "type": "dashboard" }
+   }
+   ```
+
+2. On `ok: true`, call **`mcp__scheduled-tasks__create_scheduled_task`** with:
+   - `prompt`: the returned `claudeScheduledTaskPrompt` (e.g. `/implexa:run-scheduled <uuid>`)
+   - `cron`: the returned `cronExpression`
+   - `timezone`: the returned `timezone`
+
+3. Confirm to the user, ≤ 2 lines:
+
+   ```
+   scheduled. runs <humanizedSchedule>. output lands at app.implexa.ai/runs.
+   manage at app.implexa.ai/scheduled.
+   ```
+
+**If the user picks "Skip - ad-hoc only" (or replies "skip" / "not now" / "later"):**
+
+Tell them: *"saved. you can schedule it anytime with `/implexa:schedule <slug>`."* Move to Step 3g.
+
+**Notes**:
+- Default destination is `{ type: "dashboard" }`. Do NOT ask about Slack here. The user can layer Slack on later via `/implexa:schedule`.
+- If `schedule_skill` fails (bad parse, unknown skill, etc.), surface the error and offer to retry with a different cadence. Don't block the rest of the post-save flow.
+- If `mcp__scheduled-tasks__create_scheduled_task` is unavailable, the Implexa manifest is still saved — tell the user they can run `/implexa:run-scheduled <id>` manually.
+
 ### Step 3g — Offer to share
 
 After the skill is saved (and activated, if the user chose to), ALWAYS offer to share it. This is the viral primitive — every captured skill is one share away from spreading. Ask one clean question:
@@ -175,6 +219,7 @@ When the call returns, render the URL prominently (full URL, with the gate descr
 ## Notes for the model
 
 - **The interview is the magic.** Skip it and you produce a flat prompt. Walk through it and you produce a structured skill. Always do the interview unless the user explicitly says "skip it".
+- **The schedule prompt is bundled.** Step 3f.5 is mandatory whenever finalize returns a `recommendedCadences` field. Don't skip it. Most users don't know `/implexa:schedule` exists; surfacing the 4 cadences at the moment of save is what converts "saved a skill" → "saved a habit".
 - **Three capture surfaces — use all three.** external-data tool calls (automatic), non-Implexa actions via `record_demo_note` (manual — your job), and host-forwarded transcript (automatic via hooks). If you skip `record_demo_note` after a WebSearch, that step vanishes from the skill.
 - **`record_demo_note` is cheap.** One sentence summary, fire-and-forget, silently drops if no demo is running. Call it generously. Better to overlog than to leave a gap in the procedure.
 - **The "anything else?" question is required.** After `end_demonstration` and before `interview_for_skill`, always ask the user the free-text question. The user may skip; that's fine. But don't skip *asking*.

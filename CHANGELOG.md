@@ -12,6 +12,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.8.2] — 2026-05-20
+
+Bundles scheduling into `/implexa:record-skill`. After a SKILL.md is saved,
+the flow now presents 4 domain-aware cadence recommendations + a skip
+option. If the user picks one, `schedule_skill` + `create_scheduled_task`
+fire inline; if they skip, existing behavior. Closes the awareness gap
+where ~95% of saved skills never got scheduled because users didn't know
+`/implexa:schedule` existed.
+
+### Changed
+- `/implexa:record-skill` adds Step 3f.5 (offer to schedule) between the
+  preview/activate prompt (3f) and the share prompt (3g). Renders the 4
+  cadences via `AskUserQuestion` with the first one marked "(Recommended)";
+  user can also type a custom cadence as free-text via the Other input.
+- Backend `interview_for_skill` finalize response now includes a
+  `recommendedCadences` field on all three branches (new skill, re-record
+  into existing, already-finalized idempotent re-call). Heuristic-based
+  inference on intent + name + content + tags + tools used:
+  - "morning" / "standup" / "yesterday" / "daily brief" → `daily at 8:55am`
+  - "hourly" / "pulse" / "scan" / "monitor" → `every 2 hours`
+  - "weekly" / "rollup" / "review" → `every monday at 9am`
+  - "monthly" / "EOM" / "end of month" → `monthly on the 1st at 9am`
+  - catchall → `daily at 9am`
+- No new MCP tool; cadence inference rides inside the existing
+  `interview_for_skill` finalize response so it adds zero round-trips.
+
+No new permissions or env vars. Existing schedule infra (manifest tables,
+`schedule_skill`, `/implexa:run-scheduled` wrapper, `/scheduled` dashboard
+page) handles the actual cron registration unchanged.
+
 ## [0.8.1] — 2026-05-20
 
 Adds **`slack-plugin` destination type** to the scheduler. Recommended path
