@@ -12,6 +12,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.8.0] — 2026-05-20
+
+Adds the **scheduler** surface. `/implexa:schedule` lets users register any
+installed skill to run on a recurring cron with output persisted to the
+Implexa dashboard and optionally delivered to a Slack channel. This is the
+"sticky habit" layer — every morning at 8:55am the brief lands in #standup,
+defensibility compounds, and the user can audit history at app.implexa.ai/runs.
+
+The scheduler does NOT run model inference itself. It wraps Claude Code's
+`scheduled-tasks` MCP for the cron firing, then adds the manifest, persistence,
+and delivery layers that Claude alone does not provide. Zero cost per run.
+
+### Added
+- **`/implexa:schedule` slash command** — registers a recurring run. Accepts
+  natural-language schedule ("daily at 8:55am", "every weekday at 9am",
+  "hourly", "every 30 minutes", plus raw cron). Destinations: dashboard
+  (always-on) and Slack incoming webhook (optional). Internally calls the
+  new `schedule_skill` MCP tool, then dispatches to
+  `mcp__scheduled-tasks__create_scheduled_task` with the prompt
+  `/implexa:run-scheduled <id>`.
+- **`/implexa:run-scheduled` slash command (internal)** — the callback that
+  Claude Code's scheduled-task invokes when a cron fires. Resolves the
+  manifest via `get_scheduled_skill_payload`, executes the resolved skill's
+  SKILL.md content, then persists output + delivers via
+  `record_scheduled_run`. Background-task context: produces no chat output
+  beyond a one-line confirmation. Users do NOT invoke this directly.
+
+### Backend (no plugin bump required, but listed for context)
+- Migration `0023_scheduled_skills.sql` — `scheduled_skills` (manifest) +
+  `skill_runs` (output log) tables with RLS-scoped policies. `skill_runs`
+  is generalized: `source ∈ (scheduled, adhoc, orchestration)` so it can
+  log non-scheduled runs in the future.
+- New MCP tools: `schedule_skill`, `get_scheduled_skill_payload`,
+  `record_scheduled_run`. All three thread the user's identity from the
+  authenticated MCP session (no caller-supplied userContext).
+- New routes: `GET/POST/PATCH/DELETE /api/v2/scheduled-skills` for
+  manifest CRUD, `GET /api/v2/scheduled-skills/runs` for the dashboard
+  /runs surface.
+- NL → cron parser in `src/lib/cron-parser.js`. Covers the 5 most common
+  patterns plus raw-cron passthrough.
+- Slack incoming-webhook delivery in `src/lib/slack-delivery.js`.
+  Converts standard markdown to Slack mrkdwn before posting (`**bold**`
+  → `*bold*`, `## H2` → `*H2*`, `[t](u)` → `<u|t>`).
+
 ## [0.7.0] — 2026-05-20
 
 Adds the **orchestrator** surface. `/implexa:morning` is the first chain-of-skills
