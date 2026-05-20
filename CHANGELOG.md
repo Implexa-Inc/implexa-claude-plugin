@@ -12,6 +12,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.6.1] — 2026-05-19
+
+Config-only patch. Bumps Claude Code's MCP tool timeout for the Implexa
+server from the SDK default of 60s to 180s (3 minutes) so finishing a
+recording no longer surfaces a cosmetic `MCP error -32001: Request timeout`
+while the skill author finalizes.
+
+### Fixed
+- **`MCP error -32001: Request timeout` after `/implexa:record-skill`** —
+  the finalize path calls Anthropic Haiku to emit 6000-8000 tokens of
+  SKILL.md, which routinely takes 30-90s for rich skills. Claude Code's
+  bundled MCP SDK caps tool calls at the default `DEFAULT_REQUEST_TIMEOUT_MSEC
+  = 60000`, surfacing the timeout error even though the backend completed
+  successfully and the skill IS in the user's library. The install script
+  now writes `env.MCP_TOOL_TIMEOUT=180000` into `~/.claude/settings.json`
+  on every install, so Claude Code waits the full 3 minutes before giving
+  up. Existing users on 0.6.0 need to re-run
+  `curl -fsSL https://core.implexa.ai/install.sh | bash` to pick up the
+  patch (same reinstall pattern as 0.6.0). `.mcp.json`'s `timeout` field
+  doesn't work — see [anthropics/claude-code#43791](https://github.com/anthropics/claude-code/issues/43791).
+
 ## [0.6.0] — 2026-05-18
 
 Pre-launch polish. The Skill Graph gets a proper update flow, the install

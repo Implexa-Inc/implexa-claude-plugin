@@ -518,7 +518,41 @@ fi
 mv "$TMP_SETTINGS" "$SETTINGS"
 ok "settings.json patched (3 hook events registered)"
 
-# ─── 8b. Auto-install the Implexa plugin (Claude Code CLI) ─────────────
+# ─── 8b. Bump MCP_TOOL_TIMEOUT in settings.json (idempotent) ───────────
+# Implexa's finalize step (Anthropic Haiku writes a 6000-8000 token SKILL.md
+# after a recording wraps) routinely takes 30-90s for rich skills. Claude
+# Code's bundled MCP SDK caps tool calls at the default 60000ms, which
+# surfaces as "MCP error -32001: Request timeout" — purely cosmetic
+# (the skill IS saved server-side), but it looks scary to the user.
+#
+# MCP_TOOL_TIMEOUT (read by Claude Code, NOT the spawned server) is the
+# only documented knob. There is no per-server timeout in .mcp.json: see
+# anthropics/claude-code#43791 + #22542 — a "timeout" sibling of
+# command/args/env is silently ignored. The fix has to live in the user's
+# ~/.claude/settings.json env block.
+#
+# We raise to 180000ms (3 min) — comfortable margin over the observed 90s
+# ceiling, low enough that a genuinely hung call still surfaces. Never
+# downgrades a user-set higher value.
+TIMEOUT_TARGET=180000
+TMP_SETTINGS2="$SETTINGS.tmp2.$$"
+if ! jq --argjson target "$TIMEOUT_TARGET" '
+  .env = (.env // {})
+  | .env.MCP_TOOL_TIMEOUT = (
+      if ((.env.MCP_TOOL_TIMEOUT // "0") | tonumber? // 0) >= $target
+        then .env.MCP_TOOL_TIMEOUT
+        else ($target | tostring)
+      end
+    )
+' "$SETTINGS" > "$TMP_SETTINGS2"; then
+  warn "Could not patch MCP_TOOL_TIMEOUT in $SETTINGS (hooks patch from previous step is intact)."
+  rm -f "$TMP_SETTINGS2"
+else
+  mv "$TMP_SETTINGS2" "$SETTINGS"
+  ok "settings.json env.MCP_TOOL_TIMEOUT set to ${TIMEOUT_TARGET}ms (avoids cosmetic -32001 during skill authoring)"
+fi
+
+# ─── 8c. Auto-install the Implexa plugin (Claude Code CLI) ─────────────
 # Mimics what /plugin marketplace add + /plugin install do internally, so
 # users don't have to type those two commands inside Claude Code. After
 # this, the user pastes one curl and is fully connected.
