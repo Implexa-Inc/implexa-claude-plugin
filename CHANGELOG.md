@@ -12,6 +12,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.7.0] — 2026-05-20
+
+Adds the **orchestrator** surface. `/implexa:morning` is the first chain-of-skills
+slash command — one command, multiple skills resolved + invoked + logged as a
+single orchestration. This is the foundation for the v2 graph recommender
+(personalized chain suggestions based on the user's actual run history).
+
+### Added
+- **`/implexa:morning` slash command** — chains
+  `standup-from-yesterday-commits` + `daily-ai-skills-pulse` into one terse
+  morning brief. The skill calls the new `orchestrate_skills` MCP tool, which
+  resolves each slug, logs a `skill_invocations` row + awards run karma to
+  each creator, and writes a single `orchestrations` row tying the chain
+  together. The agent reads each step's SKILL.md body and synthesizes one
+  unified output (Yesterday + Today / AI signal / Blockers, capped at 200
+  words). Missing-skills case offers `/implexa:fork` install suggestions.
+- **`orchestrate_skills` MCP tool** (backend) — generic chain primitive. Input:
+  `command` (telemetry label) + `chain` (ordered array of skill slugs, 1-10).
+  Returns each step's SKILL.md content for the agent to execute. Terminal
+  statuses: `completed` (all resolved), `partial` (some failed), `failed`
+  (none resolved). The same primitive will back `/implexa:end-of-day` and
+  the eventual `/implexa:do-my-work` open-prompt entry.
+
+### Why
+Even at small N (4-5 skills), users (including the founder) start losing
+track of which skill maps to which intent. Search-by-name = intent-by-name
+breaks once skills overlap in domain. The orchestrator gives users a single
+time-anchored entry point that composes the right skills automatically, and
+gives Implexa the telemetry substrate (chain frequency, step success rates,
+order patterns) to learn personalized recommendations in v2.
+
 ## [0.6.1] — 2026-05-19
 
 Config-only patch. Bumps Claude Code's MCP tool timeout for the Implexa
