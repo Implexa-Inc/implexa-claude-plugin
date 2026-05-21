@@ -1,6 +1,6 @@
 {
   "name": "implexa",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "The skill graph for AI work. Demonstrate any workflow once — Implexa captures decision traces (the WHY behind each step, not just the trajectory) via a post-demo interview, then emits an agentskills.io-compatible SKILL.md that runs in Claude Code, Cursor, Gemini CLI, Hermes, and 30+ more agents. Share with your team (private, org, or public scopes), fork from a public library, and track outcome attribution to see which skills actually moved deals/hires/saves. Built on the Agent Skills open standard, with team sharing + outcome layers on top. Includes ~26 MCP tools for skill graph operations plus external data fetching (company + people search, career history, LinkedIn posts, contacts). Free forever for personal use.",
   "author": {
     "name": "Implexa",

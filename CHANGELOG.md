@@ -12,6 +12,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.9.1] — 2026-05-20
+
+Adds **dynamic chain support** to `/implexa:morning`. Users can now pass
+skill slugs as args to override the hardcoded default chain for a single
+run:
+
+```
+/implexa:morning standup-from-yesterday-commits aeo-content-plan hackernews-and-x-comment-drafter
+```
+
+If no args supplied, the existing default (standup + pulse) runs. Bridges
+v0.7.0's hardcoded chain to v2.0's recommender-driven chain selection
+without a backend change — `orchestrate_skills` already accepts any
+1-10 slug chain, the slash command was just hardcoding it.
+
+### Changed
+- `/implexa:morning` SKILL.md adds Step 0 (parse args). Validates kebab-case
+  slugs, rejects natural-language phrases with a clarifying prompt, enforces
+  the 10-slug max. Falls back to default chain when no args supplied.
+- Step 1's `orchestrate_skills` call now uses the parsed chain instead of
+  the hardcoded list. Adds `context.isCustomChain` + `context.rawArgs` to
+  the orchestrations row so the v2 recommender can later mine user
+  preferences ("ashish always passes these 3 slugs on Mondays").
+- "What's next?" + "What this skill demonstrates" sections rewritten to
+  surface the evolution path: v0.7.0 hardcoded → v0.9.1 args → v0.10.0
+  --save flag → v2.0 recommender-driven.
+
+### Why
+Yesterday user asked: "can I say `/implexa:morning` and then say run X, Y, Z
+skills?" Today the answer is yes — pass them as args. v0.9.1 is the
+30-minute bridge between v0.7.0's static chain and v2.0's recommender-
+driven chain. Same backend tool, same telemetry, just a UX unlock.
+
+### Backend
+No changes. `orchestrate_skills` already supports any chain. This was
+purely a slash command body update.
+
 ## [0.9.0] — 2026-05-20
 
 Closes the CLI-user capability gap on schedule management. Until now, users

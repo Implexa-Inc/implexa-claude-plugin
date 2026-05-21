@@ -4,10 +4,18 @@ description: Run the user's morning brief — chains existing skills (standup fr
 
 # Morning brief — chained skill orchestration
 
-Run this each morning. Composes two existing skills into one 30-second brief:
+Run this each morning. **Default chain** composes two existing skills into one 30-second brief:
 
 1. **standup-from-yesterday-commits** → yesterday's git activity + Jira transitions
 2. **daily-ai-skills-pulse** → top AI signal from the last 24h (HN, X, papers)
+
+**Custom chain** (v0.9.1+) — pass skill slugs as args to `/implexa:morning` and the orchestrator runs your chain instead:
+
+```
+/implexa:morning standup-from-yesterday-commits hackernews-and-x-comment-drafter aeo-content-plan
+```
+
+The arg-supplied chain replaces the default for THIS run only. v0.10.0 will add `--save` to persist a custom default per user.
 
 The orchestrator handles the chain via `orchestrate_skills`. You read each step's returned `content` and execute it like any other skill, then synthesize the outputs into one unified brief.
 
@@ -15,13 +23,41 @@ This is the orchestrator-pattern entry point. Future commands like `/implexa:end
 
 ---
 
+## Step 0 — Parse the chain from slash command args (v0.9.1+)
+
+Inspect the `<command-args>` section of this invocation.
+
+**Case A — no args** (or empty / whitespace-only): use the default chain.
+
+```js
+chain = ["standup-from-yesterday-commits", "daily-ai-skills-pulse"];
+isCustomChain = false;
+```
+
+**Case B — args present**: parse as a space- or comma-separated list of skill slugs. Each token is treated as a kebab-case slug, exact-match resolved by the orchestrator. The chain is the ordered list in arg order.
+
+```js
+// /implexa:morning standup-from-yesterday-commits aeo-content-plan
+chain = ["standup-from-yesterday-commits", "aeo-content-plan"];
+isCustomChain = true;
+
+// /implexa:morning a, b, c   (commas tolerated)
+chain = ["a", "b", "c"];
+```
+
+**Validation rules:**
+- 1 ≤ chain.length ≤ 10 (the orchestrate_skills schema enforces max 10; reject pre-call if user supplied more)
+- Each token must match `/^[a-z0-9-]+$/i` (kebab-case slug). If a token has spaces or invalid chars (e.g. natural-language phrases like "morning briefing"), stop and tell the user: "I need exact skill slugs like `standup-from-yesterday-commits`, not natural-language descriptions. To see your library: `/implexa:my-skills`."
+
+**Ambiguous args:** if the args look like natural language ("run my morning skills") rather than a slug list, do NOT silently fall back to default. Stop and ask for clarification: "Did you mean the default chain (no args needed) or specific slugs (pass them space-separated)?"
+
 ## Step 1 — Call the orchestrator
 
 Call **`orchestrate_skills`** with:
 
-- `command`: `"morning"`
-- `chain`: `["standup-from-yesterday-commits", "daily-ai-skills-pulse"]`
-- `context`: optional. Pass any user-specified options here (date range, focus topic). Stored in orchestrations.metadata for telemetry.
+- `command`: `"morning"` (always; the telemetry label is stable across default + custom chains)
+- `chain`: the chain from Step 0 (default OR custom)
+- `context`: `{ source: "slash-command", isCustomChain: <bool from Step 0>, rawArgs: "<the original args string, if any>" }` — stored in orchestrations.metadata. The v2 recommender will mine this field to learn user preferences ("ashish always passes these 3 slugs on Mondays") and eventually surface those as `--save`-able defaults.
 
 The tool returns:
 
@@ -104,9 +140,10 @@ If only one is missing, fork-suggest just that one and offer to run the remainin
 
 ## What's next?
 
-- `Set up /implexa:morning to auto-run at 8:55am daily` — via scheduled tasks
-- `Show me my recent morning runs` — future dashboard surface; not live yet
-- `Swap a step in my morning chain` — v2; for now, fork the morning skill to customize
+- `Set up /implexa:morning to auto-run at 8:55am daily` — via `/implexa:schedule`
+- `Show me my recent morning runs` — `app.implexa.ai/runs` (live now) or call `list_scheduled_skills` for the orchestrated-via-scheduler set
+- `Swap a step in my morning chain for this run` — re-invoke with `/implexa:morning <slug-1> <slug-2> ...` (v0.9.1+; replaces default chain for this run only)
+- `Save a custom default chain` — v0.10.0 will add `--save` flag; for now, persistent customization means editing the local plugin's morning/SKILL.md or asking the v2 recommender once it accumulates data
 
 ## Notes for the model
 
@@ -132,4 +169,8 @@ This is the **orchestrator pattern** — one slash command, multiple chained ski
 - `/implexa:end-of-day` chains a wrap-up + tomorrow-prep chain
 - `/implexa:do-my-work` (v3) accepts an open prompt and selects the chain dynamically
 
-For v1, the chain is hardcoded in this file. For v2, the recommender learns each user's morning chain from their actual `orchestrations` history (the `orchestrate_skills` tool logs every run).
+**Evolution path:**
+- **v0.7.0**: hardcoded chain (default = standup + pulse, baked into this file)
+- **v0.9.1** (current): user can override the chain by passing slugs as args; default is still used when no args
+- **v0.10.0** (planned): `--save` flag persists a per-user default chain
+- **v2.0** (recommender-driven): `orchestrate_skills` queries the v2 recommender for "what does this user run in the morning?" and builds chain from accumulated `orchestrations` history. No args needed; the chain adapts as patterns emerge.
