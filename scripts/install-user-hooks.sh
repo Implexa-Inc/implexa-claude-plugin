@@ -531,10 +531,13 @@ ok "settings.json patched (3 hook events registered)"
 # command/args/env is silently ignored. The fix has to live in the user's
 # ~/.claude/settings.json env block.
 #
-# We raise to 180000ms (3 min) — comfortable margin over the observed 90s
-# ceiling, low enough that a genuinely hung call still surfaces. Never
-# downgrades a user-set higher value.
-TIMEOUT_TARGET=180000
+# v0.10.1 raises this to 300000ms (5 min). v0.6.1 originally raised to
+# 180000ms (3 min) based on the observed 90s ceiling for normal save flows.
+# In practice the re-record-into-existing-skill merge (Haiku rewrites a
+# 200+ line skill and reconciles a 50+ call new trace into one updated
+# SKILL.md) routinely hits 180-250s. 300s gives margin without making
+# genuinely-hung calls invisible. Never downgrades a user-set higher value.
+TIMEOUT_TARGET=300000
 TMP_SETTINGS2="$SETTINGS.tmp2.$$"
 if ! jq --argjson target "$TIMEOUT_TARGET" '
   .env = (.env // {})

@@ -12,6 +12,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.10.1] — 2026-05-21
+
+Raises `MCP_TOOL_TIMEOUT` from 180s to 300s in the install script.
+
+### Why
+v0.6.1 introduced the 180s timeout fix based on the observed 90s ceiling
+for normal save flows. In practice the **re-record-into-existing-skill**
+merge (Haiku rewrites a 200+ line skill + reconciles a 50+ call new
+demonstration trace into one updated SKILL.md) routinely takes 180-250s.
+
+This is the same cosmetic -32001 timeout v0.6.1 was meant to eliminate.
+Finalize is idempotent so retries succeed, but the timeout banner still
+flashes and reads as a real error to users. Bumping to 300s eliminates
+the symptom for typical re-record cases without making truly-hung calls
+invisible.
+
+### Changed
+- `scripts/install-user-hooks.sh` — TIMEOUT_TARGET 180000 → 300000.
+  Same idempotent jq patch (never downgrades a user-set higher value;
+  catches and warns if jq fails).
+
+### Backend
+No changes. Backend already supports any timeout; the cap was a client-
+side knob from the start (see anthropics/claude-code#43791 + #22542).
+
+### Known separate issue (NOT fixed in this release)
+When the re-record merge succeeds via retry-on-idempotent, the existing
+skill's `version` field doesn't always bump. The `updated_at` moves but
+`version` stays put. Symptom: user can't tell the new SKILL.md content
+apart from the old version in the dashboard, and rollback semantics are
+ambiguous. Bug surfaced 2026-05-21 on `x-shitposting-implexaai-hourly`
+v5 re-record. Defer to a separate investigation; not blocking the
+timeout fix.
+
 ## [0.10.0] — 2026-05-20
 
 Adds **`/implexa:publish-to-clawhub`** — a new slash command that wraps the
