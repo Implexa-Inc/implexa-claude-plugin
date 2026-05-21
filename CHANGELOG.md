@@ -12,6 +12,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.9.0] — 2026-05-20
+
+Closes the CLI-user capability gap on schedule management. Until now, users
+on Claude Code without a browser tab had to load app.implexa.ai/scheduled
+to pause / resume / delete a schedule. v0.8.1's `/implexa:schedule` SKILL.md
+even promised the MCP path with a "v2; for now, dashboard /scheduled has
+the toggle" hedge. This is that v2.
+
+### Added (backend — propagates to all clients without a plugin release)
+- **`pause_scheduled_skill`** — flip a schedule's status to paused. The
+  cron task at Claude Code's runtime keeps firing, but the wrapper short-
+  circuits via get_scheduled_skill_payload. Idempotent.
+- **`resume_scheduled_skill`** — flip back to active. Also accepts `failed`
+  rows for best-effort recovery (next fire will re-attempt naturally; if
+  the underlying issue isn't fixed, it'll flip back to failed).
+- **`delete_scheduled_skill`** — hard-delete the manifest. Historical
+  skill_runs survive (FK is ON DELETE SET NULL — output still at /runs).
+  Does NOT tear down Claude Code's scheduled-task; documented in
+  nextAction so the user can clean up via the sidebar.
+- **`list_scheduled_skills`** — list the caller's schedules with
+  humanizedSchedule (natural prose from cron) + nextRunInfo + per-run
+  telemetry. Filters: includePaused (default true), includeFailed
+  (default false), limit (default 50, max 100).
+- **`cron-parser.nextFireApprox(cron, tz)`** — approximate next-fire
+  helper for management readbacks. Handles the same shapes humanizeCron
+  recognizes; falls back to raw cron echo otherwise.
+
+### Changed (plugin)
+- `/implexa:schedule` SKILL.md "What's next?" section now advertises the
+  four new MCP tools as the primary management path. Dashboard still
+  documented as the visual alternative.
+
+### Why
+Yesterday's v0.8.1 promised the v2 MCP path with a placeholder. Users
+asked for it the same day. Service methods (updateScheduledSkill,
+deleteScheduledSkill, listForUser) already existed — this release just
+exposes them via MCP with Zod schemas (per the v0.8.1 outage lesson;
+JSON Schema breaks prod, Zod is mandatory). No new business logic.
+
+### Tested
+- `scripts/smoke-scheduler-management.js` — 8 branches: create → pause →
+  resume → list → delete; idempotent pause; idempotent resume; delete
+  non-existent. Plus MCP `tools/list` registry assertion (catches the
+  Zod-vs-JSON-Schema bug class).
+
 ## [0.8.3] — 2026-05-20
 
 Closes two parser/UX defects surfaced by the v0.8.1 validation report.

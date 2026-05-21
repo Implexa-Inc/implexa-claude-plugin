@@ -114,9 +114,14 @@ Keep it ≤ 4 lines. Do not echo the cron expression unless the user asked for i
 
 ## What's next?
 
-- `Pause this schedule` — call `mcp__implexa__schedule_skill` with `status:paused` patch (v2; for now, dashboard /scheduled has the toggle)
-- `Run it once now to test` — invoke `/implexa:run-scheduled <id>` directly
-- `Show me my scheduled skills` — load app.implexa.ai/scheduled or list via the API
+Schedule management is now available from inside Claude Code (no dashboard hop needed):
+
+- `Pause this schedule` → `mcp__implexa__pause_scheduled_skill({ scheduledSkillId })` — flip status to paused. The cron task at Claude's runtime still fires but the wrapper short-circuits until resume. Idempotent.
+- `Resume a paused schedule` → `mcp__implexa__resume_scheduled_skill({ scheduledSkillId })` — flip back to active. Also accepts failed rows for best-effort recovery.
+- `Delete a schedule` → `mcp__implexa__delete_scheduled_skill({ scheduledSkillId })` — hard-delete the manifest. Historical runs at app.implexa.ai/runs are preserved. Note: Claude Code's scheduled-task is still registered and may fire once before going dormant; to fully clean up, also remove the task from Claude Code's scheduled-tasks sidebar.
+- `List all my schedules` → `mcp__implexa__list_scheduled_skills({})` — returns every schedule with natural-prose humanizedSchedule, nextRunInfo, destinationLabel, runCount, lastRunAt.
+- `Run it once now to test` — invoke `/implexa:run-scheduled <id>` directly.
+- `Manage in the dashboard` — app.implexa.ai/scheduled is still live as the visual alternative.
 
 ## Notes for the model
 
