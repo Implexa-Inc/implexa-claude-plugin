@@ -12,6 +12,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.10.0] — 2026-05-20
+
+Adds **`/implexa:publish-to-clawhub`** — a new slash command that wraps the
+5-step manual ClawHub publish workflow (whoami → fetch SKILL.md → stage →
+clawhub publish → return URL) into one shot. Defaults version to `0.1.0`
+for first publish or auto-increments patch via `clawhub inspect` for
+re-publishes. Defaults tags to the skill's existing tags. Defaults owner
+to the user's `clawhub whoami` handle. Prompts for a `--clawscan-note`
+only when the skill uses Chrome MCP / browser-control / unusual MCPs.
+Rejects org/private scoped skills (ClawHub is public-only). Supports
+`--dry-run` for testing arg parsing without burning a version number.
+
+Backed by a new `get_skill_content` MCP tool that returns the full
+SKILL.md body for one slug (distinct from `list_org_skills`, which omits
+content for payload size).
+
+### Added
+
+- `/implexa:publish-to-clawhub <slug> [--version --tags --changelog --clawscan-note --owner --dry-run]`
+- `get_skill_content` MCP tool (backend) — fetches one skill's full content + metadata
+
 ## [0.9.1] — 2026-05-20
 
 Adds **dynamic chain support** to `/implexa:morning`. Users can now pass

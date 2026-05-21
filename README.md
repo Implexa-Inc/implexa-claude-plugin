@@ -114,6 +114,7 @@ Everyone in the org now has the power user's stack — without having to discove
 | Skill | What it does |
 |---|---|
 | `/implexa:share-this` | Generate a share link — team-gated or public |
+| `/implexa:publish-to-clawhub` | Publish a universal skill to the ClawHub public marketplace in one shot |
 | `/implexa:skill-roi` | Outcome attribution: which skills are driving real outcomes |
 
 ### Setup + admin
