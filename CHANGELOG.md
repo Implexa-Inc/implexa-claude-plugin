@@ -12,6 +12,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.8.3] — 2026-05-20
+
+Closes two parser/UX defects surfaced by the v0.8.1 validation report.
+
+### Changed
+- `/implexa:schedule` SKILL.md now advertises two additional schedule
+  patterns its parser already accepts (and previously didn't):
+  - `"every 2 hours"` (any N from 1-23)
+  - `"every 3 days"` (any N from 1-30, runs at midnight in the schedule's tz)
+- Raw cron passthrough now reverse-humanizes to natural prose in the
+  user-facing confirmation. Before: "Scheduled X cron \`0 \*/2 \* \* \*\`."
+  After: "Scheduled X every 2 hours." Recognizes hourly/N-minute/N-hour/
+  N-day patterns, single-time-recurring (daily, weekday, single-weekday,
+  Mon-Fri range), and monthly-on-Nth.
+
+### Why
+v0.8.1's own validation brief recommended "every 2 hours" as the test
+cadence. The parser rejected it. Embarrassing doc-tells-you-broken-input
+bug; fixed here. The reverse-humanize sister fix means power-users who
+type raw cron still get clean readback copy.
+
+### Backend
+- `src/lib/cron-parser.js` — added `every N hours` (1-23) and `every N days`
+  (1-30) patterns; added `humanizeCron(cron)` helper that recognizes 6
+  common cron shapes and returns natural prose. Falls back to the raw
+  cron echo for unknown shapes (e.g. multi-value lists, comma sets).
+- 11 new smoke cases pre-push, all green.
+
 ## [0.8.2] — 2026-05-20
 
 Bundles scheduling into `/implexa:record-skill`. After a SKILL.md is saved,

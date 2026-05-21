@@ -22,7 +22,9 @@ Extract three things from the user's free-form input:
   - `"every monday at 9am"` (any weekday name)
   - `"every hour"` / `"hourly"`
   - `"every 30 minutes"` (1-59)
-  - raw cron: `"55 8 * * *"`
+  - `"every 2 hours"` (1-23) ← new in v0.8.3
+  - `"every 3 days"` (1-30, runs at midnight in the schedule's timezone) ← new in v0.8.3
+  - raw cron: `"55 8 * * *"` (reverse-humanized to natural prose when displayed back)
 
 - **`destination`** (optional, default `{type:"dashboard"}`):
 
