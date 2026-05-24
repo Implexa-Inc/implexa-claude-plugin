@@ -12,6 +12,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.13.0] - 2026-05-24
+
+P2.2: the wedge. Inline-apply for ambient recommendations. The user sees a
+recommendation, says "yes, run it", and the right SKILL.md gets fetched
+from the cross-vendor index and executed inline in the same turn. No
+download. No install. No leaving the chat.
+
+### The pitch made real
+
+Before P2.2 the recommender surface ended at "here's a URL, go install it."
+That's the same experience as Smithery + ClawHub + Skills.sh. We add nothing.
+Now the loop closes: surface, ask, apply. Nobody else does this. This is the
+moat the company is built on.
+
+### Added
+
+- **Plugin-side: apply-inline framing** in `hooks/recommend-on-prompt.sh`
+  for all three explicit-invocation paths (`implexa, <query>`, `implexa run
+  <slug>`, `implexa suggest`/`implexa what`). The `additionalContext`
+  now carries explicit instructions: when the user says yes / picks a number /
+  affirms, the model calls `apply_recommended_skill` directly with the
+  `slug` + `source` + `recommendation_event_id` from the chosen entry,
+  receives the SKILL.md body inline, and executes it against the user's
+  current request without summarizing or re-asking.
+- **`implexa run <slug>` decision rule**: when the resolution is
+  unambiguous (single candidate OR top-1 score notably ahead OR exact slug
+  match), the model is instructed to apply directly without a confirmation
+  roundtrip — the user already opted in by typing `implexa run`. Multiple
+  ambiguous candidates still prompt for disambiguation.
+- **`/implexa:suggest` Step 4 update**: the previous "if the tool isn't
+  registered yet, point at the source URL" branch is gone; `apply_recommended
+  _skill` is now live. The step now describes the full apply flow including
+  the response shape `{ ok, skill_content, skill_metadata, execution_
+  instruction, applied_skill_event_id }` and the error-fallback behavior
+  when the source row is missing or empty.
+
+### Backend dependency (ships in the same release window)
+
+- New MCP tool `apply_recommended_skill` in the Implexa backend. Zod schema
+  (the 43b7089 lesson stands). Takes `slug`, `source`, optional
+  `recommendation_event_id`, optional `session_id`. Looks up the canonical
+  row in `aggregated_skills` filtered to `is_active = true`. Returns the
+  full SKILL.md body in `skill_content` plus metadata (name, slug, source,
+  source_url, description, author, contributor_attribution) and an
+  `execution_instruction` that tells the model to execute the skill
+  end-to-end without re-summarizing.
+- Side effects on the apply path: patches `recommendation_events.ran_slug`
+  + `resolved_at` when an event id is provided (closes the surfacing-to-
+  action loop for the install-rate metric), and inserts a row in
+  `applied_skill_events` (new migration 0028) for the conversion-rate
+  metric and as the substrate for P3 run-trace capture. Both side effects
+  are log-don't-throw — DB failures never block returning the skill to
+  the model.
+- Migration 0028 (`applied_skill_events`): one row per inline apply.
+  Carries `user_id`, `session_id`, `recommendation_event_id` (nullable —
+  direct-apply paths skip the surfacing event), `aggregated_skill_id`,
+  denormalized `slug` + `source` (survive source-row deletion), plus
+  pre-baked P3+ columns (`outcome`, `trace_summary`, `diverged_from_
+  canonical`, `contributed_back`) so P3 run-trace work doesn't need
+  another schema migration. RLS is deny-all for anon and authenticated;
+  service-role-only writes.
+
+### Why this version is a minor bump, not a patch
+
+`apply_recommended_skill` is a new MCP tool and a new model-facing instruction
+surface, not a fix to existing behavior. The user-visible affordance shifts
+from "here's a URL" to "let me run it for you", which is a feature surface,
+so 0.12.0 → 0.13.0.
+
+### Backward compatibility
+
+`/implexa:suggest`, ambient mode, and the explicit-invocation paths all keep
+working without the new MCP tool registered (the old fallback messaging is
+gone from the slash command body, but the hook output is well-formed JSON
+in either case). For a clean upgrade the backend must be on the matching
+deploy that registers `apply_recommended_skill`; otherwise the model will
+get a tool-not-found error if a user picks a number and the model tries to
+apply. Until the backend is live, ambient + pull-buffer + search-surfacing
+continue to work unchanged.
+
 ## [0.12.0] - 2026-05-24
 
 P2.1b: dual-mode surface for the ambient recommender. Replaces v0.11.1's

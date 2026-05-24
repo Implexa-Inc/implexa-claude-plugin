@@ -71,9 +71,14 @@ After the list, ask exactly:
 
 > pick one to run inline, or type a number, or say "skip".
 
-If the user picks a number or says "run #N":
-- If the MCP tool `mcp__implexa__apply_recommended_skill` is registered (P2.2 ships this), call it with `slug`, `source`, and `recommendation_event_id` (the `id` field on the entry the user picked). The tool fetches the SKILL.md from `aggregated_skills.content` and injects it into the session for execution.
-- If `apply_recommended_skill` is NOT yet registered (P2.2 hasn't shipped), tell the user honestly: "the inline-apply tool ships in P2.2. for now, here's the source URL: <install_url>. open it to install via the source registry's own flow."
+If the user picks a number, says "run #N", or any clear affirmative naming one entry ("yes", "go ahead", "apply", "run draft-outreach"):
+
+1. Call the MCP tool `mcp__implexa__apply_recommended_skill` with `slug`, `source`, and `recommendation_event_id` (the `id` field on the entry the user picked, mapped 1:1 onto `recommendation_event_id`).
+2. The tool returns `{ ok, skill_content, skill_metadata, execution_instruction, applied_skill_event_id }`. The full SKILL.md body is in `skill_content`.
+3. Execute `skill_content` IMMEDIATELY against the user's current work. Do not summarize the skill, do not paste the SKILL.md back to the user, do not re-ask what they want done. The skill defines its own 6 components (intent, inputs, procedure, decision points, output contract, outcome signal); follow them in order. If the skill needs specific inputs you don't have, ask for just those inputs.
+4. If the tool returns `ok: false` (skill removed from the index, content empty, etc.), surface the `error` field honestly and offer the buffer entry's `install_url` as a fallback.
+
+If the user says "skip" or picks no entry, do nothing.
 
 ## Step 5, don't re-surface to Supabase
 

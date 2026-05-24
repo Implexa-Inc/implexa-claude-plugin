@@ -521,7 +521,7 @@ run_explicit_search() {
     .matches
     | to_entries
     | map(
-        "\(.key + 1). **\(.value.name)** (\(.value.source)): \(.value.description // "no description")\n   Why it fits: \(.value.fit_reason)\n   Source URL: \(.value.install_hint // "n/a")\n   To apply inline: call mcp__implexa__apply_recommended_skill with slug=\"\(.value.slug)\", source=\"\(.value.source)\", recommendation_event_id=\"\($eid)\" (P2.2 tool; if not yet registered tell the user the apply tool ships in P2.2 and offer the source URL as fallback)"
+        "\(.key + 1). **\(.value.name)** (\(.value.source)): \(.value.description // "no description")\n   Why it fits: \(.value.fit_reason)\n   Source URL: \(.value.install_hint // "n/a")\n   slug: `\(.value.slug)`  source: `\(.value.source)`  recommendation_event_id: `\($eid)`"
       )
     | join("\n\n")
   ' <<< "$inner" 2>/dev/null)
@@ -533,7 +533,9 @@ Implexa searched the cross-vendor skill graph (aggregated_skills index: Anthropi
 
 ${results_block}
 
-These results came from the user's direct invocation of Implexa. Present them as Implexa's answer to the user's query: render the numbered list above with each skill's name, source in parens, fit-reason, and source URL. After the list, ask which one (if any) they want to apply inline. Do not append unrelated commentary. The user is expecting to see Implexa's response."
+These results came from the user's direct invocation of Implexa. Present them as Implexa's answer to the user's query: render the numbered list above with each skill's name, source in parens, fit-reason, and source URL.
+
+After the list, ask which one (if any) the user wants to apply INLINE. If they say yes / a number / a slug / \"run it\" / \"apply\" / \"go ahead\" / any clear affirmative, call the MCP tool mcp__implexa__apply_recommended_skill with the slug, source, and recommendation_event_id from the chosen entry. The tool returns the full SKILL.md content as skill_content plus an execution_instruction. Execute that SKILL.md immediately against the user's original request — do not summarize what the skill does or ask further clarifying questions about the recommendation itself; the skill defines its own structure (6 components: intent, inputs, procedure, decision points, output contract, outcome signal) and you should follow that structure end-to-end. If the user dismisses, declines, or just continues with something else, do not apply anything — the recommender is ambient, never blocking."
 
   emit_additional_context "$ctx" "implexa: ${matches_count} match(es) for \"${query:0:40}\""
   hook_log "explicit" "surfaced" "${matches_count}_matches:${first_slug}"
@@ -557,7 +559,9 @@ run_explicit_suggest() {
 
 ${list}
 
-These are Implexa's response to the user's direct invocation. Render the list above as-is, then ask which (if any) they want to apply inline. To apply: call mcp__implexa__apply_recommended_skill with the slug and source from the chosen entry (P2.2 tool; if not yet registered, tell the user the apply tool ships in P2.2 and offer the source URL as fallback)."
+These are Implexa's response to the user's direct invocation. Render the list above as-is, then ask which (if any) the user wants to apply INLINE.
+
+To apply: read the pull-buffer at ~/.claude/plugins/implexa/recent-recommendations.json to find the chosen entry's slug, source, and id (id is the recommendation_event_id). Call the MCP tool mcp__implexa__apply_recommended_skill with those three fields. The tool returns the full SKILL.md content (skill_content) plus an execution_instruction. Execute that SKILL.md immediately against the user's current work — do not summarize what the skill does or re-ask what the user wants; the skill defines its own structure (intent, inputs, procedure, decision points, output contract, outcome signal) and you should follow it end-to-end. If the user picks no entry or says skip, do nothing."
   emit_additional_context "$ctx" "implexa: $(jq -r '(.entries // []) | length' <(read_buffer)) recent rec(s)"
   hook_log "explicit_action" "suggest_dumped" ""
   return 0
@@ -605,19 +609,23 @@ run_explicit_run() {
     .matches
     | to_entries
     | map(
-        "\(.key + 1). **\(.value.name)** (\(.value.source)) slug: `\(.value.slug)`\n   Why it fits: \(.value.fit_reason)\n   To apply: call mcp__implexa__apply_recommended_skill with slug=\"\(.value.slug)\", source=\"\(.value.source)\", recommendation_event_id=\"\($eid)\""
+        "\(.key + 1). **\(.value.name)** (\(.value.source)) slug: `\(.value.slug)`\n   Why it fits: \(.value.fit_reason)\n   slug: `\(.value.slug)`  source: `\(.value.source)`  recommendation_event_id: `\($eid)`"
       )
     | join("\n\n")
   ' <<< "$inner" 2>/dev/null)
 
   local ctx
-  ctx="The user invoked Implexa with: \"implexa run ${args}\".
+  ctx="The user invoked Implexa with: \"implexa run ${args}\". This is an EXPLICIT REQUEST TO RUN — the user has already opted in, so you should apply directly without a confirmation roundtrip when the resolution is clean.
 
 Implexa resolved the request to these candidate skill(s):
 
 ${results_block}
 
-Surface this to the user as Implexa's response. If the first match is clearly the right one (top-1 score notably higher than top-2, or exact slug match), apply it directly via mcp__implexa__apply_recommended_skill. Otherwise ask the user to pick which to run. If the apply_recommended_skill tool is not yet registered (P2.2 not yet shipped), tell the user honestly: \"the inline-apply tool ships in P2.2. for now, open the source URL or use /implexa:run for org-scoped skills.\""
+Decision rule:
+  * If there is exactly ONE candidate, OR the first candidate is clearly the right match (top-1 score notably higher than top-2, OR the user's args matched a slug exactly), call the MCP tool mcp__implexa__apply_recommended_skill RIGHT NOW with slug, source, and recommendation_event_id from that entry. Do not ask for confirmation — the user already typed \"implexa run\".
+  * If multiple candidates are genuinely ambiguous, render the numbered list and ask the user to pick by number.
+
+When you call apply_recommended_skill, it returns the full SKILL.md content (skill_content) plus an execution_instruction. Execute that SKILL.md immediately against the user's prior context — do not summarize the skill or re-ask what the user wants; the skill defines its own structure (intent, inputs, procedure, decision points, output contract, outcome signal) and you should follow it end-to-end. If the skill needs specific inputs the user hasn't provided in their prompt history, ask for just those inputs."
   emit_additional_context "$ctx" "implexa: resolving \"${args:0:40}\""
   hook_log "explicit_action" "run_resolved" "${matches_count}_candidates"
   return 0
