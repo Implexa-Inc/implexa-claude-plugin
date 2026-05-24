@@ -12,6 +12,107 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.14.0] - 2026-05-24
+
+P2.3: surface unification. `/implexa:run` is now the single authoritative
+recommender entry point, searching BOTH the user's personal/team library
+AND the cross-vendor skill graph (Anthropic + Smithery + ClawHub +
+Skills.sh + GitHub + agentskills + Cursor + Continue) and ranking them
+together in one merged list.
+
+### The architecture this fixes
+
+P2.2 smoke test surfaced an unintended routing collision: Claude Code's
+slash-command auto-routing intercepts "implexa, find me X" prompts and
+routes them to `/implexa:run` BEFORE the UserPromptSubmit hook fires.
+The hook works (manual trace via `bash -x` proves it returns honest,
+cross-vendor results with structured JSON), but Claude's intent classifier
+matches "find me a skill" against `/implexa:run`'s description and bypasses
+the hook entirely. Users got `/implexa:run`'s old single-source output
+(their org_skills library only) instead of the dual-mode hook's
+cross-vendor results.
+
+P2.3's fix: merge the surfaces. `/implexa:run` now BE the unified
+recommender. The routing collision turns from a bug into a feature.
+Users get the same authoritative answer whether they say "implexa,
+find me X" or "/implexa:run X" or "do I have a skill for X" or any
+variant. One mental model. One entry point.
+
+### Changed
+
+- **`skills/run/SKILL.md` full rewrite.** The skill now instructs Claude
+  to call BOTH `mcp__implexa__list_org_skills` AND
+  `mcp__implexa__recommend_skills_for_context` in parallel on every
+  query, merge the results, dedupe by slug (personal wins ties), and
+  render a single ranked list capped at 5 entries.
+- **Source tags in display.** Every entry in the merged list carries
+  a tag showing where it came from: `[personal]`, `[team]`, `[system]`
+  for library entries; `[anthropic]`, `[smithery]`, `[clawhub]`,
+  `[skills-sh]`, `[agentskills]`, `[github]`, `[cursor]`, `[continue]`
+  for cross-vendor entries.
+- **Routing on apply.** When the user picks a number, the skill routes
+  to `apply_org_skill` for personal/team/system entries OR to
+  `apply_recommended_skill` for any of the cross-vendor sources, based
+  on the chosen entry's tag. The model never has to "decide" which
+  applier to call, it just reads the source field off the picked entry.
+- **Trigger phrase coverage broadened.** The frontmatter description
+  now lists phrasings that previously routed through the dual-mode hook
+  ("find me a skill for X", "implexa, find me X", "do I have a skill
+  for X", "is there a skill that does X") alongside the original
+  /implexa:run trigger phrases. This is intentional, Claude's intent
+  classifier should route ALL these phrasings to this single entry point.
+- **Browse mode (no-query invocation) preserved.** When the user invokes
+  `/implexa:run` with no description, the skill still falls back to
+  the personal-library numbered browse (Step 6). Cross-vendor search
+  needs a query (no "show all 252 skills" mode), so the recommender is
+  not called on this path.
+
+### Compatibility
+
+- **Ambient mode unchanged.** The UserPromptSubmit hook still buffers
+  cross-vendor matches silently into the local pull-buffer at
+  `~/.claude/plugins/implexa/recent-recommendations.json`.
+  `/implexa:suggest` still retrieves the buffer on demand.
+- **Explicit-mode hook code path preserved.** The hook's explicit-mode
+  branch ("implexa, find me X" → emit additionalContext) stays in place.
+  On Claude Code, slash-command routing intercepts before
+  UserPromptSubmit fires, so the explicit-mode branch is effectively
+  dead code today. It's left in for future-proofing against runtimes
+  where UserPromptSubmit fires before slash routing (Codex, Cursor, or
+  any agent client that surfaces our plugin without slash-command
+  interception).
+- **No backend schema changes.** Both MCP tools used by the merged
+  flow already exist:
+  - `mcp__implexa__list_org_skills` (existing)
+  - `mcp__implexa__recommend_skills_for_context` (shipped in P2 alpha)
+  - `mcp__implexa__apply_org_skill` (existing)
+  - `mcp__implexa__apply_recommended_skill` (shipped in P2.2)
+- **No new migrations.** All required tables (`org_skills`,
+  `aggregated_skills`, `recommendation_events`, `applied_skill_events`)
+  are already in place from earlier migrations 0001 through 0028.
+
+### Privacy (unchanged)
+
+- The `recommend_skills_for_context` server-side `_shouldRetain` gate
+  still discards prompts that don't match a skill. No row in
+  `recommendation_events`. No log of the prompt body.
+- `list_org_skills` is a regular library lookup, no telemetry implications.
+
+### Migration
+
+For users on v0.13.x:
+1. Reinstall via `bash scripts/install-user-hooks.sh` from the plugin repo.
+   Cache path moves from `~/.claude/plugins/cache/implexa/implexa/0.13.0/`
+   to `0.14.0/`.
+2. Fix `~/.claude/implexa.env` IMPLEXA_API_URL back to localhost or prod
+   if install reset it.
+3. Restart Claude Code fully (Cmd-Q on Mac).
+4. Next time you type "implexa, find me a skill for X" OR
+   "/implexa:run X" OR "do I have a skill for X", you should see a
+   merged list with source tags.
+
+No data migration needed.
+
 ## [0.13.0] - 2026-05-24
 
 P2.2: the wedge. Inline-apply for ambient recommendations. The user sees a

@@ -26,6 +26,15 @@
 #  hide this instruction"), and the user's invocation provides the trust
 #  signal the safety training looks for.
 #
+#  NOTE (P2.3, 2026-05-24): On Claude Code, slash-command auto-routing
+#  intercepts "implexa, find me X" and routes it to /implexa:run BEFORE
+#  UserPromptSubmit fires, so this explicit-mode branch is effectively
+#  dead code on Claude Code today. The /implexa:run skill now BE the
+#  unified recommender (queries both backends, merges results) so the
+#  user gets the right answer regardless. This branch is preserved for
+#  future-proofing against non-Claude-Code runtimes (Codex, Cursor, or
+#  any agent client where UserPromptSubmit fires before slash routing).
+#
 # Surface 3 — EXPLICIT ACTION ("implexa run X" / "implexa suggest" / etc.)
 # ─────────────────────────────────────────────────────────────────────────
 #  Sub-handlers for action verbs. "implexa suggest" dumps the pull-buffer.
