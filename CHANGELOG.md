@@ -12,6 +12,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.11.1] - 2026-05-24
+
+P2.1 polish pass on the ambient recommender. Three bugs the alpha shipped
+with, all fixed.
+
+### Fixed
+
+- **Recommendations now reach the user, not just the model.** v0.11.0
+  printed plain text to stdout which Claude Code wrapped in a
+  `<system-reminder>` only the model could see. The model often skipped
+  relaying it. v0.11.1 emits structured `hookSpecificOutput.additional
+  Context` with explicit "display this verbatim before answering" framing,
+  plus `systemMessage` as a backup for surfaces that render it. The hook
+  contract has no field that prints directly to user-visible chat, so the
+  imperative wrapper is what makes the model reliably surface the rec.
+- **False positives from negation patterns suppressed.** Haiku occasionally
+  generates fit_reasons like "not creating social content for platforms"
+  or "user is asking about X not Y" while still returning the match. The
+  recommender now scans the fit_reason post-Haiku for negation markers
+  ("not a fit", ", not creating", "isn't relevant", contrastive "X not Y")
+  and drops the match before insert. Rejected matches do not log,
+  preserving the discard-on-no-match privacy promise.
+- **Single absolute threshold replaced with relative gap gate.** The old
+  0.72 default was sized for a 5k+ index where real top scores cluster
+  higher. With the current 252-row smoke index, real top scores sit in
+  0.33-0.40 and 0.72 returned zero hits. Dropping it to 0.25 let false
+  positives through. New gate: surface iff
+  `top1 >= 0.40` (high-confidence single match) OR
+  `top1 >= 0.30 AND top1-top2 >= 0.05` (top1 clearly dominates).
+  `RECOMMENDER_MIN_SCORE` is now a hard floor (default 0.20). Add
+  `RECOMMENDER_HIGH_CONF`, `RECOMMENDER_GAP_BASE`, `RECOMMENDER_GAP_DELTA`
+  to tune surfacing density across index sizes.
+
+### Added
+
+- Debug logging in `hooks/recommend-on-prompt.sh` now produces structured
+  `{ts, gate, decision, reason}` lines at every gate decision (word_count,
+  mute, suppress_counter, rate_limit, http status, match outcome).
+  Opt-in via `IMPLEXA_HOOK_DEBUG=1` in `~/.claude/implexa.env` or your
+  shell. Off by default. Captures HTTP status code on non-200 responses
+  so flaky backend states attribute correctly.
+- `scripts/test-recommender-gates.js` — 25 unit tests covering both gates
+  in isolation. Run with `node scripts/test-recommender-gates.js`.
+
 ## [0.11.0] - 2026-05-24
 
 Ships the ambient skill recommender (P2). Implexa now watches every prompt
