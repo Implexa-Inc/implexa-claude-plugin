@@ -555,6 +555,131 @@ else
   ok "settings.json env.MCP_TOOL_TIMEOUT set to ${TIMEOUT_TARGET}ms (avoids cosmetic -32001 during skill authoring)"
 fi
 
+# ─── 8d. Ambient recommender hook (P2): opt-in consent ────────────────
+# Implexa watches every UserPromptSubmit and surfaces ONE skill suggestion
+# when the prompt semantically matches an aggregated skill above threshold.
+#
+# Privacy promise (made source-of-truth in the backend):
+#   * Prompts that match a skill → retained for ranking improvement.
+#   * Prompts that do NOT match  → discarded, never logged.
+#
+# Failure here is NON-FATAL. The existing user-level hooks for demo
+# recording (step 8a) work without the recommender. If the user declines
+# or this step fails, the rest of the install proceeds normally.
+
+RECOMMEND_LAUNCHER="$CLAUDE_DIR/implexa-recommend.sh"
+RECOMMEND_LAUNCHER_CMD='$HOME/.claude/implexa-recommend.sh'
+
+install_recommender_hook() {
+  # ── Consent gate ───────────────────────────────────────────────────
+  # The ambient recommender is observably different from the demo hook
+  # (it prints inline suggestions). Users who didn't ask for that surface
+  # shouldn't get it silently. Block on Enter to opt in.
+  echo ""
+  echo "${C_BOLD}🪄  ambient skill recommender (optional)${C_RESET}"
+  echo ""
+  echo "implexa can also watch your sessions and recommend skills as you work."
+  echo "one skill, mid-prompt, when something in the implexa index matches."
+  echo ""
+  echo "${C_BOLD}privacy promise:${C_RESET}"
+  echo "  • prompts that produce a recommendation: retained for ranking improvement"
+  echo "  • prompts that don't match a skill: discarded, never logged"
+  echo ""
+  echo "to disable later:"
+  echo "  • per-session: type \"mute implexa for this session\""
+  echo "  • permanently: remove the implexa-recommend block from ~/.claude/settings.json"
+  echo ""
+
+  # Non-interactive run (CI, headless): skip the ambient surface. Users
+  # who automate installs probably don't want inline suggestions surfacing
+  # to their pipelines. They can always re-run interactively.
+  if [ ! -r /dev/tty ]; then
+    warn "No terminal available, skipping ambient recommender setup. Re-run interactively to enable."
+    return 1
+  fi
+
+  echo -n "press ${C_BOLD}enter${C_RESET} to enable, or ${C_BOLD}ctrl-c${C_RESET} to skip: "
+  # Read a single line. User may just hit enter (default = enable). If
+  # they ctrl-c, the shell trap will fire and `read` returns non-zero.
+  if ! read -r _consent < /dev/tty; then
+    warn "Skipped ambient recommender (no input received)."
+    return 1
+  fi
+  ok "Consent recorded. Installing ambient recommender hook."
+
+  # ── Write the launcher script ──────────────────────────────────────
+  # Same pattern as ~/.claude/implexa-hook.sh: resolve the plugin's hook
+  # handler dynamically so plugin updates don't break this entry point.
+  cat > "$RECOMMEND_LAUNCHER" << 'RECLAUNCHER'
+#!/usr/bin/env bash
+# Implexa ambient recommender launcher.
+#
+# Stable entry point referenced from ~/.claude/settings.json. Resolves the
+# plugin's recommend-on-prompt.sh dynamically across CLI / Desktop install
+# locations. Sources implexa.env so the API key is in scope even when
+# Claude is launched from Finder (no shell env inherited).
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+if [ -f "$HOME/.claude/implexa.env" ]; then
+  _saved_key="${IMPLEXA_API_KEY:-}"
+  set -a
+  source "$HOME/.claude/implexa.env"
+  set +a
+  if [ -n "$_saved_key" ]; then
+    export IMPLEXA_API_KEY="$_saved_key"
+  fi
+fi
+
+PLUGIN_HOOK=$(
+  {
+    ls -t "$HOME/.claude/plugins/cache/implexa/implexa/"*/hooks/recommend-on-prompt.sh 2>/dev/null
+    ls -t "$HOME/Library/Application Support/Claude/local-agent-mode-sessions/"*/*/rpm/plugin_*/hooks/recommend-on-prompt.sh 2>/dev/null
+  } | head -n 1
+)
+if [ -z "$PLUGIN_HOOK" ] || [ ! -x "$PLUGIN_HOOK" ]; then exit 0; fi
+
+exec "$PLUGIN_HOOK"
+RECLAUNCHER
+  chmod +x "$RECOMMEND_LAUNCHER"
+  ok "Wrote ambient recommender launcher: $RECOMMEND_LAUNCHER"
+
+  # ── Patch settings.json: add the recommender command to UserPromptSubmit ──
+  # Adds a SECOND command alongside the existing implexa-hook.sh under the
+  # same matcher="*" group. Idempotent: re-running the script does NOT
+  # double-register.
+  local tmp="$SETTINGS.tmp.rec.$$"
+  if ! jq --arg cmd "$RECOMMEND_LAUNCHER_CMD" '
+    .hooks = (.hooks // {})
+    | .hooks.UserPromptSubmit = (.hooks.UserPromptSubmit // [])
+    | (if (.hooks.UserPromptSubmit | any(.matcher == "*" or .matcher == "")) then .
+       else .hooks.UserPromptSubmit += [{matcher: "*", hooks: []}]
+       end)
+    | .hooks.UserPromptSubmit |= map(
+        if (.matcher == "*" or .matcher == "") then
+          .hooks = (.hooks // [])
+          | (if (.hooks | any(.command == $cmd)) then .
+             else .hooks += [{type: "command", command: $cmd}]
+             end)
+        else .
+        end
+      )
+  ' "$SETTINGS" > "$tmp"; then
+    err "Failed to patch settings.json for ambient recommender. Original is unchanged."
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$SETTINGS"
+  ok "settings.json patched (ambient recommender registered under UserPromptSubmit)"
+
+  # Ensure the state dir + an initial state file exist so the first hook
+  # invocation doesn't race on dir creation.
+  mkdir -p "$HOME/.claude/plugins/implexa" 2>/dev/null || true
+  return 0
+}
+
+install_recommender_hook || warn "Ambient recommender not installed (the rest of the install is fine)."
+
 # ─── 8c. Auto-install the Implexa plugin (Claude Code CLI) ─────────────
 # Mimics what /plugin marketplace add + /plugin install do internally, so
 # users don't have to type those two commands inside Claude Code. After

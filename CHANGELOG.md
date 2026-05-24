@@ -12,6 +12,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.11.0] - 2026-05-24
+
+Ships the ambient skill recommender (P2). Implexa now watches every prompt
+you type in Claude Code and surfaces ONE relevant skill mid-task when it
+finds a match in the cross-vendor index. Push-based, not pull-based. No
+slash command to remember, no "recommend" mode to enable. Installed once,
+fires forever (until you mute it).
+
+### What's new
+
+- New plugin-shipped hook `hooks/recommend-on-prompt.sh` (UserPromptSubmit).
+- New install-time consent prompt (opt-in, blocks on Enter, skippable).
+- New backend MCP tool `recommend_skills_for_context` (Zod schema).
+- New backend service entry point `recommendForContext` over the
+  aggregated_skills index (P1 substrate). Semantic match, top-N, parallel
+  Haiku fit-reason generation.
+- New migration `0026_recommendation_events.sql` for the observational
+  substrate. Only positive matches insert rows.
+
+### Privacy: discard-on-no-match
+
+This is the marketing promise, made source-of-truth at the code layer:
+
+- Prompts that produce a recommendation: retained for ranking improvement.
+- Prompts that don't match a skill: discarded, never logged.
+
+The retain gate (`_shouldRetain` in `recommender.service.js`) is the ONE
+place that decides whether a prompt crosses from fire-and-forget into
+persisted. No row in `recommendation_events` = no log = the prompt is
+forgotten the moment the HTTP request closes.
+
+### Client-side noise control
+
+The hook is fail-quiet by design. Five gates suppress surfaces:
+
+1. Prompts under 8 words are filtered locally (no API call at all).
+2. Sessions in muted-state never fire.
+3. After a no-match, the backend hints a suppression counter (default 10
+   prompts) that the hook honors locally.
+4. Per-fire 90s minimum cool-down.
+5. Per-slug 30-minute cool-down (we don't suggest the same skill twice in
+   a half-hour window).
+
+Three consecutive dismissals surface a one-tap mute affordance.
+
+### Why this matters
+
+Nobody has shipped ambient + push-based + cross-vendor + already-not-
+installed yet. Skyll is pull. mcp-skillset is on-demand. Anthropic's
+auto-trigger only fires on skills you already have. The whitespace is
+this exact shape, and the privacy posture is part of the moat.
+
 ## [0.10.1] — 2026-05-21
 
 Raises `MCP_TOOL_TIMEOUT` from 180s to 300s in the install script.
