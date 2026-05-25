@@ -68,6 +68,20 @@ STATE_FILE="$STATE_DIR/recommender-state.json"
 BUFFER_FILE="$STATE_DIR/recent-recommendations.json"
 LOG_FILE="$HOME/.claude/implexa-recommend.log"
 
+# SkillRank phase A — consent + apply log files. consent.json is written by
+# the install script (defaults: tool_inventory + outcome_tracking ON,
+# work_signature OFF). recent-applies.json is populated by /implexa:run
+# and apply_recommended_skill side effects (TBD wiring; safe to be missing).
+CONSENT_FILE="$STATE_DIR/consent.json"
+APPLIES_FILE="$STATE_DIR/recent-applies.json"
+
+# SkillRank-side rate limit for signature writes. The recommender hook
+# can fire 20+ times per session; we don't need 20 signature rows when
+# the cohort algorithm only inspects per-session aggregates. One write
+# per ~5 min per session is plenty; the rest gets dropped client-side
+# to keep the API cheap and Supabase egress small.
+SIGNATURE_MIN_INTERVAL_S=300
+
 # Buffer policy: keep last N entries OR last 24h, whichever bound is tighter.
 BUFFER_MAX_ENTRIES=20
 BUFFER_TTL_SECONDS=86400
@@ -340,6 +354,183 @@ format_buffer_for_display() {
 }
 
 # ════════════════════════════════════════════════════════════════════════
+# SkillRank phase A — work-signature collection
+# ════════════════════════════════════════════════════════════════════════
+#
+# After a recommendation cycle (ambient or explicit), the hook OPTIONALLY
+# also calls record_work_signature with whatever the user opted into.
+#
+# Gating model:
+#   - If consent.json is missing → noop (most-conservative default)
+#   - If consent.json.work_signature_optin != true → noop (the backend
+#     would also no-op, but skipping the call here saves an HTTP round-trip)
+#   - Otherwise build payload from local sources:
+#     * installed_tools: only when tool_inventory_optin = true
+#     * applied_skills:  from recent-applies.json, always when
+#                        work_signature_optin = true
+#     * used_tools, prompt_categories: empty in phase A (the PostToolUse
+#       tracker + the prompt classifier ship in phase A.1 / phase B)
+#
+# Rate limit: at most one write per SIGNATURE_MIN_INTERVAL_S per session
+# (default 5 min). The cohort algorithm in phase B aggregates per-session
+# anyway; writing 20 rows per session inflates egress for no information
+# gain.
+# ════════════════════════════════════════════════════════════════════════
+
+# Returns one of: yes | no | unset
+read_consent_flag() {
+  local key="$1"
+  if [ ! -f "$CONSENT_FILE" ]; then printf 'unset'; return 0; fi
+  local v
+  v=$(jq -r --arg k "$key" '.[$k] // empty' "$CONSENT_FILE" 2>/dev/null)
+  case "$v" in
+    true)  printf 'yes' ;;
+    false) printf 'no'  ;;
+    *)     printf 'unset' ;;
+  esac
+}
+
+# Extract installed MCP servers + plugins as the schema-shaped JSON array
+# the record_work_signature tool expects: [{ name, server?, type }, ...]
+# All inputs are local files; failures collapse to an empty array.
+build_installed_tools_json() {
+  local out='[]'
+  local settings_file="$HOME/.claude/settings.json"
+  local desktop_cfg="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+  local installed_plugins="$HOME/.claude/plugins/installed_plugins.json"
+
+  # MCP servers from settings.json (CLI surface)
+  if [ -f "$settings_file" ]; then
+    out=$(jq -c --argjson out "$out" '
+      ($out
+       + ((.mcpServers // {})
+         | to_entries
+         | map({name: .key, server: .key, type: "mcp"})))
+    ' "$settings_file" 2>/dev/null) || out='[]'
+  fi
+
+  # MCP servers from claude_desktop_config.json (Desktop / Cowork surface)
+  if [ -f "$desktop_cfg" ]; then
+    out=$(jq -c --argjson out "$out" '
+      ($out
+       + ((.mcpServers // {})
+         | to_entries
+         | map({name: .key, server: .key, type: "mcp"})))
+    ' "$desktop_cfg" 2>/dev/null) || out="$out"
+  fi
+
+  # Installed plugins
+  if [ -f "$installed_plugins" ]; then
+    out=$(jq -c --argjson out "$out" '
+      ($out
+       + ((.plugins // {})
+         | to_entries
+         | map({name: .key, type: "plugin"})))
+    ' "$installed_plugins" 2>/dev/null) || out="$out"
+  fi
+
+  # Dedupe by (name, type)
+  out=$(jq -c 'unique_by([.name, .type])' <<< "$out" 2>/dev/null) || out='[]'
+  printf '%s' "$out"
+}
+
+# Read recent-applies.json as an array of skill slugs. The file is written
+# by the apply path (TBD wiring); safe to be missing — we just return [].
+read_applied_skills_json() {
+  if [ ! -f "$APPLIES_FILE" ]; then printf '[]'; return 0; fi
+  # Trim to last 7 days so an old run from a different work context
+  # doesn't pollute the current signature.
+  local now_s cutoff
+  now_s=$(date +%s)
+  cutoff=$(( now_s - 604800 ))
+  jq -c --argjson cut "$cutoff" '
+    [(.applies // [])[]?
+      | select((.ts_unix // 0) > $cut)
+      | .slug
+      | select(. != null and . != "")]
+    | unique
+  ' "$APPLIES_FILE" 2>/dev/null || printf '[]'
+}
+
+# Has enough time passed since the last signature write in this session?
+signature_rate_limit_ok() {
+  local last_sig now_s elapsed
+  last_sig=$(jq -r '.last_signature_at // 0' "$STATE_FILE" 2>/dev/null)
+  now_s=$(date +%s)
+  elapsed=$(( now_s - last_sig ))
+  if [ "${last_sig:-0}" -eq 0 ]; then return 0; fi
+  [ "$elapsed" -ge "$SIGNATURE_MIN_INTERVAL_S" ]
+}
+
+# Bump the rate-limit timestamp in state.
+bump_signature_timestamp() {
+  local tmp="$STATE_FILE.tmp.$$" now_s
+  now_s=$(date +%s)
+  jq --argjson now "$now_s" '.last_signature_at = $now' "$STATE_FILE" \
+    > "$tmp" 2>/dev/null && mv "$tmp" "$STATE_FILE" || true
+}
+
+# Best-effort write to record_work_signature. Failures swallow silently.
+maybe_record_signature() {
+  # Consent gate
+  local sig_flag
+  sig_flag=$(read_consent_flag "work_signature_optin")
+  if [ "$sig_flag" != "yes" ]; then
+    hook_log "signature" "skipped" "work_signature_optin=$sig_flag"
+    return 0
+  fi
+
+  # Rate limit
+  if ! signature_rate_limit_ok; then
+    hook_log "signature" "rate_limited" ""
+    return 0
+  fi
+
+  # Build payload pieces from local sources
+  local tool_flag installed_json applied_json
+  tool_flag=$(read_consent_flag "tool_inventory_optin")
+  if [ "$tool_flag" = "yes" ]; then
+    installed_json=$(build_installed_tools_json)
+  else
+    installed_json='[]'
+  fi
+  applied_json=$(read_applied_skills_json)
+
+  # MCP body
+  local body
+  body=$(jq -n \
+    --arg sid "$SESSION_ID" \
+    --argjson installed "$installed_json" \
+    --argjson applied   "$applied_json" \
+    '{
+      jsonrpc: "2.0",
+      id: "implexa-signature",
+      method: "tools/call",
+      params: {
+        name: "record_work_signature",
+        arguments: {
+          session_id:     $sid,
+          installed_tools: $installed,
+          used_tools:      [],
+          prompt_categories: {},
+          applied_skills:  $applied
+        }
+      }
+    }' 2>/dev/null) || return 0
+
+  # Fire and forget. 3s timeout so a slow backend never holds up the hook.
+  curl --silent --max-time 3 \
+    -X POST "${API_URL}/api/v2/mcp" \
+    -H "Authorization: Bearer ${API_KEY}" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -d "$body" >/dev/null 2>&1 &
+
+  bump_signature_timestamp
+  hook_log "signature" "sent" "installed=$(jq -r 'length' <<< "$installed_json"),applied=$(jq -r 'length' <<< "$applied_json")"
+}
+
+# ════════════════════════════════════════════════════════════════════════
 # AMBIENT MODE
 # ════════════════════════════════════════════════════════════════════════
 run_ambient() {
@@ -466,6 +657,11 @@ run_ambient() {
   ' "$STATE_FILE" > "$tmp" 2>/dev/null && mv "$tmp" "$STATE_FILE"
 
   hook_log "match" "buffered_silent" "$first_slug"
+
+  # SkillRank phase A — best-effort signature write (consent + rate-limited).
+  # Backgrounded inside the helper, never blocks the hook return.
+  maybe_record_signature
+
   # Output absolutely nothing — silence is the surface in ambient mode.
   return 0
 }
@@ -548,6 +744,12 @@ After the list, ask which one (if any) the user wants to apply INLINE. If they s
 
   emit_additional_context "$ctx" "implexa: ${matches_count} match(es) for \"${query:0:40}\""
   hook_log "explicit" "surfaced" "${matches_count}_matches:${first_slug}"
+
+  # SkillRank phase A — best-effort signature write. Explicit invocations
+  # are higher-intent than ambient prompts so they're worth feeding the
+  # cohort algorithm; the rate limiter still keeps volume sane.
+  maybe_record_signature
+
   return 0
 }
 
