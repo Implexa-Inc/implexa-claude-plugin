@@ -12,6 +12,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.15.0] - 2026-05-25
+
+SkillRank phase A — data-collection foundation for Implexa's proprietary
+multi-signal recommendation algorithm. No UX changes for end users beyond
+an install-time consent flow; the work here is plumbing for the moat.
+
+### Why this matters
+
+The current recommender uses semantic match on a single prompt. Replicable
+by any team in 2 weeks. NOT defensible. SkillRank adds four more signals
+(tool stack overlap, work signature similarity, cohort co-occurrence,
+outcome attribution) that compound via cross-vendor data only Implexa
+collects. Phase A captures the raw signals NOW so phase B has data to
+learn from when the algorithm ships.
+
+### Added
+
+- **Install-time consent flow.** New section in `install-user-hooks.sh`
+  prompts for three opt-ins after the API-key step. Defaults reflect the
+  privacy framing:
+  - `tool_inventory_optin`   default **ON**  (low sensitivity, needed for
+    ranking)
+  - `outcome_tracking_optin` default **ON**  (needed for outcome attribution)
+  - `work_signature_optin`   default **OFF** (strict opt-in for cohort
+    matching)
+  Press enter to accept defaults. Type `c` to customize. Non-interactive
+  installs (curl|bash without a tty) write defaults silently. Saved to
+  `~/.claude/plugins/implexa/consent.json` (chmod 600) and mirrored to
+  the backend via the new `record_consent` MCP tool.
+- **Hook signature collection.** `recommend-on-prompt.sh` now also calls
+  `record_work_signature` after a positive match (ambient or explicit),
+  when the user has opted into work signatures. Payload includes:
+  - `session_id` (always)
+  - `installed_tools`: merged from `~/.claude/settings.json` mcpServers,
+    `claude_desktop_config.json` mcpServers, and `installed_plugins.json`
+    plugins (gated on `tool_inventory_optin`).
+  - `applied_skills`: read from `~/.claude/plugins/implexa/recent-applies.json`
+    (deduped, last 7 days, gated on `work_signature_optin`).
+  - `used_tools`, `prompt_categories`: empty in phase A; PostToolUse
+    tracker + prompt classifier ship in phase A.1 / phase B.
+  Rate-limited to one write per 5 min per session (the cohort algorithm
+  aggregates per-session anyway). Fire-and-forget with 3s timeout so the
+  hook never blocks.
+
+### Backend (deploys independently of the plugin)
+
+- New table `user_work_signatures` (migration 0029) with anon_id =
+  sha256(user_id || monthly rotating salt). 90-day auto-expiry.
+- New columns on `users`: `work_signature_optin`, `tool_inventory_optin`,
+  `outcome_tracking_optin`, `optin_recorded_at`.
+- New MCP tools: `record_work_signature` (writes signatures, gated on
+  opt-in, silent no-op on opt-out) and `record_consent` (persists flags
+  to the users table).
+- New route `POST /api/v2/skill-outcome-tick` for heuristic outcome
+  inference on `applied_skill_events.outcome`. Phase A heuristic:
+  active > 5min after apply → completed; session_end < 1min → abandoned;
+  error within 30s → errored. Idempotent: first inference wins.
+
+### Privacy posture
+
+- Asymmetric defaults (do not reverse). Marketing line: "google sells
+  your data. implexa USES your data, only with permission, and only to
+  make YOUR recommendations better."
+- Prompts that don't match a skill still discarded server-side (existing
+  privacy promise on recommendation_events unchanged).
+- `anon_id` rotates monthly via `SKILLRANK_SALT_<YYYYMM>` env var. Old
+  signatures stay queryable for cohort matching but cannot be re-linked
+  to a current user_id after rotation.
+- Defense-in-depth: backend gates writes on `users.work_signature_optin`
+  regardless of what the hook sends.
+
 ## [0.14.0] - 2026-05-24
 
 P2.3: surface unification. `/implexa:run` is now the single authoritative
