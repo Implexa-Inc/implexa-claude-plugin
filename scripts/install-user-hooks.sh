@@ -555,6 +555,269 @@ else
   ok "settings.json env.MCP_TOOL_TIMEOUT set to ${TIMEOUT_TARGET}ms (avoids cosmetic -32001 during skill authoring)"
 fi
 
+# ─── 8d. Ambient recommender hook (P2): opt-in consent ────────────────
+# Implexa watches every UserPromptSubmit and surfaces ONE skill suggestion
+# when the prompt semantically matches an aggregated skill above threshold.
+#
+# Privacy promise (made source-of-truth in the backend):
+#   * Prompts that match a skill → retained for ranking improvement.
+#   * Prompts that do NOT match  → discarded, never logged.
+#
+# Failure here is NON-FATAL. The existing user-level hooks for demo
+# recording (step 8a) work without the recommender. If the user declines
+# or this step fails, the rest of the install proceeds normally.
+
+RECOMMEND_LAUNCHER="$CLAUDE_DIR/implexa-recommend.sh"
+RECOMMEND_LAUNCHER_CMD='$HOME/.claude/implexa-recommend.sh'
+
+install_recommender_hook() {
+  # ── Consent gate ───────────────────────────────────────────────────
+  # The ambient recommender is observably different from the demo hook
+  # (it prints inline suggestions). Users who didn't ask for that surface
+  # shouldn't get it silently. Block on Enter to opt in.
+  echo ""
+  echo "${C_BOLD}🪄  ambient skill recommender (optional)${C_RESET}"
+  echo ""
+  echo "implexa can also watch your sessions and recommend skills as you work."
+  echo "one skill, mid-prompt, when something in the implexa index matches."
+  echo ""
+  echo "${C_BOLD}privacy promise:${C_RESET}"
+  echo "  • prompts that produce a recommendation: retained for ranking improvement"
+  echo "  • prompts that don't match a skill: discarded, never logged"
+  echo ""
+  echo "to disable later:"
+  echo "  • per-session: type \"mute implexa for this session\""
+  echo "  • permanently: remove the implexa-recommend block from ~/.claude/settings.json"
+  echo ""
+
+  # Non-interactive run (CI, headless): skip the ambient surface. Users
+  # who automate installs probably don't want inline suggestions surfacing
+  # to their pipelines. They can always re-run interactively.
+  if [ ! -r /dev/tty ]; then
+    warn "No terminal available, skipping ambient recommender setup. Re-run interactively to enable."
+    return 1
+  fi
+
+  echo -n "press ${C_BOLD}enter${C_RESET} to enable, or ${C_BOLD}ctrl-c${C_RESET} to skip: "
+  # Read a single line. User may just hit enter (default = enable). If
+  # they ctrl-c, the shell trap will fire and `read` returns non-zero.
+  if ! read -r _consent < /dev/tty; then
+    warn "Skipped ambient recommender (no input received)."
+    return 1
+  fi
+  ok "Consent recorded. Installing ambient recommender hook."
+
+  # ── Write the launcher script ──────────────────────────────────────
+  # Same pattern as ~/.claude/implexa-hook.sh: resolve the plugin's hook
+  # handler dynamically so plugin updates don't break this entry point.
+  cat > "$RECOMMEND_LAUNCHER" << 'RECLAUNCHER'
+#!/usr/bin/env bash
+# Implexa ambient recommender launcher.
+#
+# Stable entry point referenced from ~/.claude/settings.json. Resolves the
+# plugin's recommend-on-prompt.sh dynamically across CLI / Desktop install
+# locations. Sources implexa.env so the API key is in scope even when
+# Claude is launched from Finder (no shell env inherited).
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+if [ -f "$HOME/.claude/implexa.env" ]; then
+  _saved_key="${IMPLEXA_API_KEY:-}"
+  set -a
+  source "$HOME/.claude/implexa.env"
+  set +a
+  if [ -n "$_saved_key" ]; then
+    export IMPLEXA_API_KEY="$_saved_key"
+  fi
+fi
+
+PLUGIN_HOOK=$(
+  {
+    ls -t "$HOME/.claude/plugins/cache/implexa/implexa/"*/hooks/recommend-on-prompt.sh 2>/dev/null
+    ls -t "$HOME/Library/Application Support/Claude/local-agent-mode-sessions/"*/*/rpm/plugin_*/hooks/recommend-on-prompt.sh 2>/dev/null
+  } | head -n 1
+)
+if [ -z "$PLUGIN_HOOK" ] || [ ! -x "$PLUGIN_HOOK" ]; then exit 0; fi
+
+exec "$PLUGIN_HOOK"
+RECLAUNCHER
+  chmod +x "$RECOMMEND_LAUNCHER"
+  ok "Wrote ambient recommender launcher: $RECOMMEND_LAUNCHER"
+
+  # ── Patch settings.json: add the recommender command to UserPromptSubmit ──
+  # Adds a SECOND command alongside the existing implexa-hook.sh under the
+  # same matcher="*" group. Idempotent: re-running the script does NOT
+  # double-register.
+  local tmp="$SETTINGS.tmp.rec.$$"
+  if ! jq --arg cmd "$RECOMMEND_LAUNCHER_CMD" '
+    .hooks = (.hooks // {})
+    | .hooks.UserPromptSubmit = (.hooks.UserPromptSubmit // [])
+    | (if (.hooks.UserPromptSubmit | any(.matcher == "*" or .matcher == "")) then .
+       else .hooks.UserPromptSubmit += [{matcher: "*", hooks: []}]
+       end)
+    | .hooks.UserPromptSubmit |= map(
+        if (.matcher == "*" or .matcher == "") then
+          .hooks = (.hooks // [])
+          | (if (.hooks | any(.command == $cmd)) then .
+             else .hooks += [{type: "command", command: $cmd}]
+             end)
+        else .
+        end
+      )
+  ' "$SETTINGS" > "$tmp"; then
+    err "Failed to patch settings.json for ambient recommender. Original is unchanged."
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$SETTINGS"
+  ok "settings.json patched (ambient recommender registered under UserPromptSubmit)"
+
+  # Ensure the state dir + an initial state file exist so the first hook
+  # invocation doesn't race on dir creation.
+  mkdir -p "$HOME/.claude/plugins/implexa" 2>/dev/null || true
+  return 0
+}
+
+install_recommender_hook || warn "Ambient recommender not installed (the rest of the install is fine)."
+
+# ─── 8e. SkillRank phase A — data-collection consent ───────────────────
+# Implexa's recommender gets dramatically better with three signals on
+# top of semantic match (tool stack overlap, work-signature similarity,
+# outcome attribution). Two of those are low-sensitivity and default on.
+# One — work signature for cohort matching — is more sensitive and
+# defaults OFF unless the user explicitly opts in.
+#
+# What gets written:
+#   1. ~/.claude/plugins/implexa/consent.json — the hook reads this on
+#      every prompt to decide what to send.
+#   2. POST /api/v2/mcp record_consent — the backend mirror, source of
+#      truth for record_work_signature's gate.
+#
+# Defaults at install time:
+#   tool_inventory_optin   = true   (low sensitivity)
+#   outcome_tracking_optin = true   (needed for ranking improvements)
+#   work_signature_optin   = false  (strict opt-in for cohort matching)
+#
+# DO NOT reverse these defaults. The asymmetric framing is the privacy
+# positioning ("google sells your data. implexa USES your data, only
+# with permission, and only to make YOUR recommendations better").
+#
+# Non-interactive (curl|bash with no tty): write defaults silently and
+# move on. The user can flip flags any time via app.implexa.ai/settings/data.
+
+CONSENT_PATH="$HOME/.claude/plugins/implexa/consent.json"
+
+write_consent_file() {
+  # Args: $1=tool_inventory, $2=outcome_tracking, $3=work_signature  (all 'true'|'false')
+  mkdir -p "$(dirname "$CONSENT_PATH")" 2>/dev/null || true
+  local now
+  now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  jq -n \
+    --argjson tool      "$1" \
+    --argjson outcome   "$2" \
+    --argjson signature "$3" \
+    --arg     ts        "$now" \
+    '{
+      tool_inventory_optin:   $tool,
+      outcome_tracking_optin: $outcome,
+      work_signature_optin:   $signature,
+      recorded_at:            $ts
+    }' > "$CONSENT_PATH" 2>/dev/null
+  chmod 600 "$CONSENT_PATH" 2>/dev/null || true
+}
+
+post_consent_to_backend() {
+  # Args same as write_consent_file. Best-effort, never blocks the install.
+  local tool="$1" outcome="$2" signature="$3"
+  local body
+  body=$(jq -n \
+    --argjson tool      "$tool" \
+    --argjson outcome   "$outcome" \
+    --argjson signature "$signature" \
+    '{
+      jsonrpc: "2.0",
+      id: "implexa-install-consent",
+      method: "tools/call",
+      params: {
+        name: "record_consent",
+        arguments: {
+          tool_inventory_optin:   $tool,
+          outcome_tracking_optin: $outcome,
+          work_signature_optin:   $signature
+        }
+      }
+    }' 2>/dev/null) || return 0
+
+  curl --silent --max-time 5 \
+    -X POST "${API_BASE}/api/v2/mcp" \
+    -H "Authorization: Bearer ${API_KEY}" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -d "$body" >/dev/null 2>&1 || true
+}
+
+# Prompt one yes/no. Args: $1=question text, $2='Y'|'N' default
+ask_yn() {
+  local prompt="$1" default="$2" reply
+  local hint="[Y/n]"
+  [ "$default" = "N" ] && hint="[y/N]"
+  printf '%s %s: ' "$prompt" "$hint"
+  if ! read -r reply < /dev/tty; then reply=""; fi
+  reply=$(printf '%s' "$reply" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+  if [ -z "$reply" ]; then
+    [ "$default" = "Y" ] && echo "true" || echo "false"
+    return 0
+  fi
+  case "$reply" in
+    y|yes|true|1)  echo "true"  ;;
+    *)              echo "false" ;;
+  esac
+}
+
+run_consent_flow() {
+  echo ""
+  echo "${C_BOLD}🧠 SkillRank data preferences${C_RESET}"
+  echo ""
+  echo "implexa learns from how you work to make recommendations better over time."
+  echo "this is optional. you can change these any time at app.implexa.ai/settings/data."
+  echo ""
+  echo "${C_BOLD}defaults${C_RESET} (low-sensitivity, default on):"
+  echo "  ✓ track installed tools                — helps recommend skills you can actually run"
+  echo "  ✓ track skill outcomes                  — did the recommended skill solve your task"
+  echo ""
+  echo "${C_BOLD}cohort matching${C_RESET} (more sensitive, default OFF):"
+  echo "  ☐ enable cohort matching                — anonymized work signature shared across users"
+  echo "    your recommendations get 3x better, but only with your explicit yes"
+  echo ""
+
+  # Non-interactive (curl|bash without a tty): write defaults silently.
+  if [ ! -r /dev/tty ]; then
+    write_consent_file "true" "true" "false"
+    post_consent_to_backend "true" "true" "false"
+    ok "Wrote defaults to $CONSENT_PATH (tool inventory on, outcome on, cohort matching off)"
+    return 0
+  fi
+
+  echo -n "press ${C_BOLD}enter${C_RESET} to accept defaults, or type ${C_BOLD}c${C_RESET} to customize: "
+  local choice
+  if ! read -r choice < /dev/tty; then choice=""; fi
+  choice=$(printf '%s' "$choice" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+
+  local tool="true" outcome="true" signature="false"
+  if [ "$choice" = "c" ]; then
+    echo ""
+    tool=$(ask_yn      "  track installed tools? " "Y")
+    outcome=$(ask_yn   "  track skill outcomes?  " "Y")
+    signature=$(ask_yn "  enable cohort matching?" "N")
+  fi
+
+  write_consent_file "$tool" "$outcome" "$signature"
+  post_consent_to_backend "$tool" "$outcome" "$signature"
+  ok "Saved preferences (cohort matching: $([ "$signature" = "true" ] && echo on || echo off))"
+}
+
+run_consent_flow || warn "Consent flow skipped (the rest of the install is fine; defaults take effect)."
+
 # ─── 8c. Auto-install the Implexa plugin (Claude Code CLI) ─────────────
 # Mimics what /plugin marketplace add + /plugin install do internally, so
 # users don't have to type those two commands inside Claude Code. After

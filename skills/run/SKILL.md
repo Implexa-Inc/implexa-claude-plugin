@@ -1,166 +1,294 @@
 ---
-description: Find and run one of the user's saved skills — their personal library OR the org's shared library. Use when the user says "run my skill", "use my skill", "use my triage skill", "use my X skill", "run the X workflow", "run a saved workflow", "apply skill X", "do X with one of my skills", "use the X one", "run the prospecting one", "use my Implexa skill for X", or invokes /implexa:run. THE primary entry point for skill REUSE — fuzzy-matches the user's description against their library and auto-applies the best match. If the user gives no description, render a numbered list of their skills and await selection. ALWAYS prefer this path over going directly to other MCP tools when the user implies they want to use a SAVED workflow vs. start a workflow from scratch.
+description: Find and run the best-fit skill for what the user wants to do, searching BOTH the user's personal/org library AND the cross-vendor skill graph (Anthropic, Smithery, ClawHub, Skills.sh, GitHub, agentskills, Cursor, Continue) ranked together. Use when the user says "find me a skill for X", "implexa, find me X", "do I have a skill for X", "is there a skill that does X", "run my X skill", "use my X workflow", "implexa run X", "apply skill X", "find a skill", "search skills", "what skills do I have for X", "use my skill", "run a saved workflow", "use the X one", or invokes /implexa:run with a description. THE unified recommender entry point. Personal/team library matches are tagged [personal] or [team] and apply via apply_org_skill. Cross-vendor matches are tagged [anthropic]/[smithery]/[clawhub]/[skills-sh]/[agentskills]/[github]/[cursor]/[continue] and apply inline via apply_recommended_skill. Both kinds rank against the same query. The user doesn't need to know which source has what; they ask, they get the best matches. ALWAYS prefer this path over going directly to other MCP tools when the user implies they want to USE an existing skill (vs build a new one from scratch).
 ---
 
-# Run a saved skill
+# Run a skill (unified recommender)
 
-The "use what we already built" entry point. Skill reuse is the killer
-behavior of the Skill Graph — every time a team member figures something
-out and saves it, every other teammate can replay it with one line. This
-command makes that replay frictionless: fuzzy-match the user's words to
-their library, auto-apply if there's a clear winner, otherwise show a
-numbered list.
+THE single entry point for skill reuse. When a user types a query, this
+skill searches BOTH backends in parallel:
 
-## Step 1 — Read the user's intent
+1. their personal + team + org library (the curated skills they and their
+   teammates have already captured)
+2. the cross-vendor skill graph (252+ skills indexed from Anthropic, Smithery,
+   ClawHub, Skills.sh, GitHub, agentskills, Cursor, Continue)
 
-Did the user give a query (a skill name, topic, or vague description), or
-did they just say "run a skill" / "show me my skills to pick one"?
+Results merge into one ranked list. Personal matches carry the highest
+confidence (the user explicitly opted in to save them). Cross-vendor
+matches rank by cosine similarity from the recommender. The user picks
+one and we apply it inline, routing to the correct apply tool based on
+the chosen entry's source.
 
-- **Query given** ("run my triage skill", "use the prospecting one", "do
-  the LinkedIn workflow") → Step 2 (fuzzy match + auto-apply)
+This is the architectural unification that resolves the routing collision
+discovered during P2.2 smoke test. Claude Code's slash-command intent
+classifier routes "implexa, find me X" to /implexa:run regardless of
+phrasing, so /implexa:run IS the unified recommender. One mental model,
+one entry point.
+
+## Step 1, read intent
+
+Did the user give a query (a skill name, topic, vague description), or did
+they invoke /implexa:run with no description?
+
+- **Query given** ("find me a skill for cold outreach", "implexa, find me
+  X", "run my triage skill", "use the prospecting one", "is there a
+  skill for hubspot integration") → Step 2 (parallel query)
 - **No query** (just `/implexa:run` or "let me pick a skill to run") →
-  Step 3 (browse + pick)
+  Step 6 (browse mode, personal library only)
 
-The query is whatever words the user used. Don't strip articles like
-"my" / "the" — those are part of how users naturally describe their
-skills. Just pass the substantive words: "the triage one" → query
-"triage", "use my Implexa skill for outreach" → query "outreach".
+Don't strip articles like "my" / "the" / "a", those are part of how users
+naturally describe what they want. Pass the substantive words as the query:
+"find me a skill for cold outreach" gives query "cold outreach", "the triage
+one" gives query "triage", "use my Implexa skill for outreach" gives query
+"outreach".
 
-## Step 2 — Fuzzy match against the user's library
+## Step 2, query both backends in parallel
 
-Call **`list_org_skills`** with:
-- `query`: the user's substantive words (e.g. "triage", "prospecting", "LinkedIn outreach")
-- `createdByMe`: **true** (search the user's own skills first — these are usually what they meant)
-- `limit`: 10
+Make both tool calls in the SAME response so they run concurrently. Do
+NOT wait for one before starting the other.
 
-### Interpret the results
+**Call A**, `mcp__implexa__list_org_skills`:
+- `query`: the user's substantive words
+- `createdByMe`: **false** (search the full org library, not just user's
+  own. a teammate's skill is still a personal-library match for our
+  purposes)
+- `includeUniversal`: **false** (we cover public skills via the cross-vendor
+  index instead, avoids double-counting)
+- `limit`: 5
 
-- **Exactly 1 hit, strong match** (the query appears in the skill name or
-  trigger phrases) → skip to Step 4 with that skill. No need to ask.
-- **Multiple hits** → render them as a numbered list (see Step 3 format),
-  ask the user to pick.
-- **0 hits in their own library** → call `list_org_skills` again WITHOUT
-  `createdByMe` (full org search). Apply the same logic.
-- **0 hits in their org either** → call `list_org_skills` ONE MORE TIME
-  with `includeUniversal: true` — this expands the search to the public /
-  Trending Globally library (skills explicitly shared by other orgs).
-  If you get hits, render them as a numbered list with a clear "from the
-  public library" framing:
+**Call B**, `mcp__implexa__recommend_skills_for_context`:
+- `messages`: `[<the user's query>]` (just the query, one-element array)
+- `topN`: 5
+- `minScore`: 0.20
 
-  ```
-  No saved skill matches "X" in your library yet. Found these in the
-  public library — want to install one?
+If either backend errors or times out (>10s), proceed with whatever the
+other returned. Never block the user on a slow backend.
 
-    1. 🌍 Daily HN comment drafter        — by Implexa Team · 41 runs
-    2. 🌍 Sales call prep — account research — by Implexa Team · 24 runs
+## Step 3, merge and rank
 
-  Reply with a number to install + run, or "no thanks" to skip.
-  ```
+Build a unified list:
 
-  When the user picks one, **first fork it** into their org via
-  `fork_org_skill` (so it lands in their library + shows up in
-  `/implexa:my-skills` from now on), then apply the freshly-forked copy.
-  Or, if the user says "just run it once," call `apply_org_skill`
-  directly on the universal slug without forking.
+**Personal/team matches (from list_org_skills)**:
+- Tag each with `[personal]` if `scope === 'private'` OR the skill was
+  created by the current user (createdBy matches).
+- Tag with `[team]` if `scope === 'org'`.
+- Tag with `[system]` if `scope === 'system'` (base Playbook).
+- These don't carry a numerical score (list_org_skills is a substring
+  filter, not a similarity match), but treat them as high-confidence by
+  default because they're curated and the user has access already.
 
-- **0 hits anywhere (including the public library)** → tell the user no
-  matching skill found and offer:
-  - "Run `/implexa:my-skills` to see your full library"
-  - "Capture this as a new skill via `/implexa:record-skill`"
-  - "Browse public skills at https://app.implexa.ai/skills"
+**Cross-vendor matches (from recommend_skills_for_context)**:
+- Tag each with the `source` field verbatim: `[anthropic]`, `[smithery]`,
+  `[clawhub]`, `[skills-sh]`, `[agentskills]`, `[github]`, `[cursor]`,
+  `[continue]`.
+- They carry a `score` field (0..1, normalized cosine similarity).
 
-### Be greedy on the match
+**Ordering rule**:
+1. Personal/team matches first (top of the list), ordered by `usageCount`
+   desc when there's more than one. The user's own library wins on
+   ambiguity.
+2. Cross-vendor matches next, ordered by `score` desc.
+3. **Dedupe by slug**: if a personal-library skill has the same slug as
+   a cross-vendor one (possible if the user forked from the public
+   library), keep the personal entry and drop the cross-vendor copy.
+4. **Cap at top 5 total**.
 
-If the user says "triage" and they have ONE skill with "triage" in its
-name or trigger phrases, just apply it. Don't make them pick from a
-list of 1. That defeats the point.
+## Step 4, display the merged list
 
-## Step 3 — Browse mode (or "multiple matches" mode)
+Render the unified list. Voice: lowercase, tech-bro, no em-dashes
+anywhere (use commas, periods, colons, parens, regular hyphens).
 
-Render the skills in a clean numbered list:
+Example output:
 
 ```
-Here are your skills — pick one to run:
+here are the best matches for "cold outreach":
 
-  1. 🔒 Daily prospecting        — Find net-new ICP-matching accounts
-  2. 👥 Bug triage from Jira     — Multi-source triage summary
-  3. 🌍 Launch content pack       — Show HN + Reddit + LinkedIn drafts
-  4. 🔒 Customer health brief    — Renewal risk dossier
+1. **prospect research to cold email** [personal]
+   your saved workflow, used 12 times
+   from this org's library
 
-Reply with a number, or describe it ("the triage one", "the third one",
-"the one for LinkedIn").
+2. **draft outreach** [smithery]
+   score 0.62, fits because the prompt mentions cold outreach drafting
+   source: https://smithery.ai/...
+
+3. **linkedin first touch sequence** [clawhub]
+   score 0.54, fits because cold outreach into linkedin contacts
+   source: https://clawhub.ai/...
+
+4. **email warming campaign builder** [anthropic]
+   score 0.41, fits because email outreach setup and warming
+   source: https://anthropic.com/skills/...
+
+want me to run any of these inline? reply with a number, or "skip".
+```
+
+For personal/team entries, show the skill description (or first 80 chars
+of it) in place of the fit_reason. For cross-vendor entries, show the
+score and the `fit_reason` returned by the recommender.
+
+## Step 5, apply the chosen entry
+
+When the user picks a number ("3"), names one ("run the draft-outreach
+one"), or gives any affirmative ("yes apply #2", "go ahead with the
+linkedin one"), apply that entry. **Route by source**:
+
+**If source is `personal`, `team`, or `system`** (any list_org_skills
+entry):
+- Call `mcp__implexa__apply_org_skill` with:
+  - `skillId`: the `skillId` from the list_org_skills entry (preferred)
+  - OR `skillSlug`: the `slug` if no id is to hand
+  - `invocationArgs`: any context the user provided (account names,
+    ticket ids, candidates, opportunities, threads, domains)
+- The response includes the full SKILL.md in `content`. Execute it
+  immediately against the user's original intent.
+
+**If source is one of the aggregator names** (`anthropic`, `smithery`,
+`clawhub`, `skills.sh`, `agentskills`, `github`, `cursor`, `continue`):
+- Call `mcp__implexa__apply_recommended_skill` with:
+  - `slug`: the slug from the recommender entry
+  - `source`: the source from the recommender entry (verbatim)
+  - `recommendation_event_id`: the top-level `recommendation_event_id`
+    returned by recommend_skills_for_context (this attributes the apply
+    back to the surfacing event for the install-rate metric)
+- The response shape is
+  `{ ok, skill_content, skill_metadata, execution_instruction,
+  applied_skill_event_id }`. The full SKILL.md body is in
+  `skill_content`. Execute it immediately.
+
+**In either case**: don't summarize the skill, don't paste the SKILL.md
+back at the user, don't re-ask what they want done. The skill defines
+its own 6 components (intent, inputs, procedure, decision points, output
+contract, outcome signal). Follow them in order. If the skill needs
+inputs the user hasn't provided, ask for just those inputs.
+
+## Step 6, browse mode (no-query path)
+
+If the user invoked `/implexa:run` with no description, fall back to
+the personal-library browse. Cross-vendor search needs a query (there's
+no "show me everything" surface for a 252-row index), so we don't query
+the recommender here.
+
+Call `mcp__implexa__list_org_skills` with `createdByMe: false`, `limit: 20`.
+Render the result as a numbered list with scope icons:
+
+```
+here are your skills, pick one to run:
+
+  1. 🔒 daily prospecting,         find net-new ICP-matching accounts
+  2. 👥 bug triage from jira,      multi-source triage summary
+  3. 🌍 launch content pack,       show HN + reddit + linkedin drafts
+  4. 🔒 customer health brief,     renewal risk dossier
+
+reply with a number, or describe it ("the triage one", "the third one",
+"the one for linkedin").
 ```
 
 Scope icons:
-- 🔒 Private (only you)
-- 👥 Team (shared in your org)
-- 🌍 Public (cross-org / Trending Globally)
+- 🔒 private (only you)
+- 👥 team (shared in your org)
+- 🌍 universal / system (public or base Playbook)
 
-When the user replies "3" or "the prospecting one" → resolve to that
-skill → Step 4.
+When the user picks, resolve to that skill and go to Step 5's
+apply_org_skill path.
 
-## Step 4 — Apply the chosen skill
+## Step 7, after applying, surface context (optional)
 
-Call **`apply_org_skill`** with:
-- `skillId` OR `skillSlug`: the chosen skill's identifier
-- `invocationArgs`: pass any context the user provided as named args.
-  Examples:
-  - "run my triage skill on ENG-1234" → `{ ticketId: "ENG-1234" }`
-  - "use my prospecting one for Acme" → `{ accountName: "Acme" }`
-  - "run the LinkedIn workflow against Stripe" → `{ companyName: "Stripe" }`
+Once the skill finishes, mention ONE of:
+- "that was the Nth time this skill ran in your org" (engagement signal)
+- "skills like this have driven $X in attributed outcomes" (if outcome
+  stats exist on the skill)
+- "want to share this with the team? use /implexa:share-this" (if it's
+  still private and seems valuable)
+- "want to fork this cross-vendor skill into your org? use /implexa:fork"
+  (only for cross-vendor applies the user might want to customize)
 
-The response includes the skill's full SKILL.md content. **Follow it as
-instructions** — execute the skill's procedure. The skill may chain to
-other tools (Atlassian, Slack, GitHub, Exa, your custom MCP servers,
-etc.) — that's expected.
+Keep it to ONE line. Skip entirely if context doesn't fit.
 
-## Step 5 — After applying, surface useful context
+## Edge cases
 
-Once the skill finishes, mention one of:
-- "That was the Nth time you've run this skill." (engagement signal)
-- "Skills like this have driven $X in attributed outcomes across your
-  org." (if outcome stats exist on the skill)
-- "Want to share this skill with the team? Use `/implexa:share-this`."
-  (if it's still private and seems valuable)
+| Case | Behavior |
+|---|---|
+| Both backends return 0 matches | "no skills in your library or in the open ecosystem match that. you could record one via /implexa:record-skill, or try a more specific query." |
+| Personal returns 0, aggregator returns hits | show the cross-vendor list only. no [personal] entries. |
+| Aggregator returns 0 (min_score not crossed), personal has hits | show personal only, add a one-liner: "no cross-vendor matches above the relevance threshold for this query." |
+| Backend timeout (>10s) on one side | proceed with whatever the other returned. don't block. |
+| User asks to apply a private skill they don't own (Forbidden from apply_org_skill) | "that skill is private to its creator. want to fork it via /implexa:fork instead?" |
+| apply_recommended_skill returns `ok: false` (skill removed, content empty, etc.) | surface the error field honestly and offer the entry's source URL as a fallback. |
+| Skill is in draft status | "that skill is in draft state, only active skills can be applied. ask the creator to activate it, or fork your own copy via /implexa:fork." |
 
-## What's next?
+## Greedy match rule
 
-- `Run a different skill`
-- `Show me all my skills` (/implexa:my-skills)
-- `Show me my org's skills` (/implexa:org-skills)
-- `Save this workflow as a new skill` (/implexa:record-skill)
+If the user says "triage" and ONE entry has "triage" in its name or
+trigger phrases AND it's the only top-of-list candidate, just apply it
+directly. Don't make them pick from a list of 1. That defeats the point.
+
+"Top-of-list candidate" means: the personal/team library returns exactly
+one substring hit AND no cross-vendor match has a score notably higher.
+When in doubt, render the list and let the user pick.
 
 ## Notes for the model
 
-- **This is the PRIMARY entry point for skill reuse.** Whenever you
-  detect intent to use an existing skill (phrases like "my X skill",
-  "the X one", "saved workflow", "use my skill for Y"), call this
-  flow INSTEAD of starting the workflow from scratch with the underlying
-  MCP tools. Saving the team a re-discovery loop is the whole point of
-  Implexa.
+- **Pass context as invocationArgs.** If the user mentioned an account,
+  ticket id, candidate id, opportunity, domain, thread id, or any other
+  entity, include it in `invocationArgs` (for apply_org_skill) or relay
+  it as the user's working context (for apply_recommended_skill).
+  Attribution keys make outcome correlation downstream possible.
 
-- **Pass context as invocationArgs.** If the user mentioned an account
-  name, ticket ID, candidate ID, opportunity ID, company domain, thread
-  ID, or any other entity — include it in `invocationArgs`. Richer
-  attribution keys = better outcome correlation later.
+- **Source tag is mandatory in display.** Users need to see whether a
+  match comes from their own library vs the open ecosystem. The tag
+  shapes their expectation: personal matches "just work" because their
+  org already vetted them, cross-vendor matches may need a tool the
+  current session doesn't have (apply_org_skill surfaces a
+  `requiredTools` hint for that case; apply_recommended_skill surfaces
+  the source URL on failure).
 
-- **Don't double-list.** If your fuzzy match returns exactly 1 strong
-  hit, just apply it. If the user later wanted a different skill, they
-  can re-invoke with a more specific description.
+- **Don't query the recommender on browse mode (Step 6).** The recommender
+  expects a query. With no query there's nothing meaningful to rank
+  against the 252-row cross-vendor index. List the personal library
+  instead.
 
-- **Surface scope.** Private skills (🔒) belong only to the user — they
-  may not realize a skill is private vs team-shared. Surfacing scope
-  in the picker helps them decide whether to `/implexa:share-this`.
+- **Don't double-call backends.** One pass through Step 2 is the whole
+  search. If the user refines their query, treat that as a fresh
+  invocation and rerun Step 2 with the new query.
 
-- **`createdByMe` first is intentional.** The user said "MY skill"
-  almost certainly means a skill THEY authored, not a teammate's. Only
-  expand to org-wide if their own library has nothing.
+- **Voice rules apply to all user-facing output.** Lowercase, tech-bro X
+  cadence, no em-dashes anywhere. Use commas, periods, colons, parens,
+  or standard hyphens.
+
+## What this command IS NOT
+
+- It is NOT a search box for the ENTIRE cross-vendor index without a
+  query. There's no "browse all 252 skills" mode here. For that, the
+  dashboard at https://app.implexa.ai/skills is the right surface.
+
+- It is NOT a way to view buffered ambient matches. That's
+  `/implexa:suggest`, which reads the local pull-buffer the recommender
+  hook wrote silently as the user typed prompts.
+
+- It is NOT a skill-recording surface. For capturing a new workflow,
+  point the user at `/implexa:record-skill`.
+
+## Why this is the final entry point
+
+Three entry points, clear semantics:
+
+1. **`/implexa:run` (this one)** OR **"implexa, find me X"** OR **"do I
+   have a skill for X"** → unified recommender, both sources, ranked.
+2. **`/implexa:suggest`** → pull-buffer of ambient matches that fired
+   silently during recent prompts.
+3. **`/implexa:record-skill`** → capture a new skill from demonstration.
+
+No competing paths. The "implexa as a verb" claim is preserved because
+"implexa, find me X" still works (Claude Code's slash-command router
+points it here). One mental model. One authoritative answer regardless
+of phrasing.
 
 ## Error handling
 
 | Error | Diagnosis | Tell the user |
 |---|---|---|
-| `Skill not found` | Bad slug after the user picked one | Re-list with `list_org_skills`, then retry with the correct slug. |
-| `Forbidden` | Trying to apply a private skill they don't own | "That skill is private to its creator — only they can run it. Want to fork it via /implexa:fork instead?" |
-| `Skill is archived` / `draft` | Status check failed | "That skill is in {status} state — only active skills can be applied. Ask the creator to activate it, or fork your own copy via /implexa:fork." |
-| 0 hits across own + org library | The skill the user thinks exists doesn't | "I couldn't find a saved skill matching 'X'. Run /implexa:my-skills to see what you have, or /implexa:record-skill to capture this workflow as a new skill." |
+| `Skill not found` from apply_org_skill | bad slug after picking | re-list with list_org_skills, retry with the correct slug. |
+| `Forbidden` from apply_org_skill | private skill not owned by the caller | "that skill is private to its creator. want to fork it via /implexa:fork instead?" |
+| `Skill is archived` / `draft` | status check failed | "that skill is in {status} state. only active skills can be applied. ask the creator to activate it, or fork via /implexa:fork." |
+| `skill not found in the cross-vendor index` from apply_recommended_skill | source row was removed | "that skill was removed from {source}. try a different recommendation, or browse the source directly." |
+| `skill was indexed without content` from apply_recommended_skill | source row has empty content | "no content available for that one. here's the source URL if you want to install manually: {source_url}." |
+| Both backends 0 matches | the query has nothing | "no matches in your library or the open ecosystem. try /implexa:record-skill to capture a new workflow, or rephrase the query." |
