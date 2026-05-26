@@ -233,10 +233,11 @@ Then call `mcp__implexa__submit_skill_feedback` with:
   "applied_skill_event_id": "..." }
 ```
 
-The tool returns `nextAction` instructing you to chain into update-skill.
-Invoke `/implexa:update-skill` (slash command) referencing the skill the
-user just ran. The user's improvement comment becomes the starting
-context for the re-record session.
+The tool returns `nextAction` instructing you to chain into the update
+flow. Invoke `/implexa:record` (it handles new + post-hoc save + update
+existing) referencing the skill the user just ran. The user's
+improvement comment becomes the starting context for the re-record
+session, which lands on Branch C (update existing via re-record).
 
 ### no response (user just keeps working)
 
@@ -253,20 +254,21 @@ if it doesn't fit:
   stats exist on the skill)
 - "want to share this with the team? use /implexa:share-this" (if it's
   still private and seems valuable)
-- "want to fork this cross-vendor skill into your org? use /implexa:fork"
-  (only for cross-vendor applies the user might want to customize)
+- "want to fork this cross-vendor skill into your org? just say 'fork
+  this skill'" (only for cross-vendor applies the user might want to
+  customize, the model routes natural language straight to fork_org_skill)
 
 ## Edge cases
 
 | Case | Behavior |
 |---|---|
-| Both backends return 0 matches | "no skills in your library or in the open ecosystem match that. you could record one via /implexa:record-skill, or try a more specific query." |
+| Both backends return 0 matches | "no skills in your library or in the open ecosystem match that. you could record one via /implexa:record, or try a more specific query." |
 | Personal returns 0, aggregator returns hits | show the cross-vendor list only. no [personal] entries. |
 | Aggregator returns 0 (min_score not crossed), personal has hits | show personal only, add a one-liner: "no cross-vendor matches above the relevance threshold for this query." |
 | Backend timeout (>10s) on one side | proceed with whatever the other returned. don't block. |
-| User asks to apply a private skill they don't own (Forbidden from apply_org_skill) | "that skill is private to its creator. want to fork it via /implexa:fork instead?" |
+| User asks to apply a private skill they don't own (Forbidden from apply_org_skill) | "that skill is private to its creator. want to fork it? just say 'fork this skill' and the model will run fork_org_skill." |
 | apply_recommended_skill returns `ok: false` (skill removed, content empty, etc.) | surface the error field honestly and offer the entry's source URL as a fallback. |
-| Skill is in draft status | "that skill is in draft state, only active skills can be applied. ask the creator to activate it, or fork your own copy via /implexa:fork." |
+| Skill is in draft status | "that skill is in draft state, only active skills can be applied. ask the creator to activate it, or fork your own copy (just say 'fork it')." |
 
 ## Greedy match rule
 
@@ -318,7 +320,7 @@ When in doubt, render the list and let the user pick.
   hook wrote silently as the user typed prompts.
 
 - It is NOT a skill-recording surface. For capturing a new workflow,
-  point the user at `/implexa:record-skill`.
+  point the user at `/implexa:record`.
 
 ## Why this is the final entry point
 
@@ -328,7 +330,7 @@ Three entry points, clear semantics:
    have a skill for X"** → unified recommender, both sources, ranked.
 2. **`/implexa:suggest`** → pull-buffer of ambient matches that fired
    silently during recent prompts.
-3. **`/implexa:record-skill`** → capture a new skill from demonstration.
+3. **`/implexa:record`** → capture a new skill from demonstration.
 
 No competing paths. The "implexa as a verb" claim is preserved because
 "implexa, find me X" still works (Claude Code's slash-command router
@@ -340,8 +342,8 @@ of phrasing.
 | Error | Diagnosis | Tell the user |
 |---|---|---|
 | `Skill not found` from apply_org_skill | bad slug after picking | re-list with list_org_skills, retry with the correct slug. |
-| `Forbidden` from apply_org_skill | private skill not owned by the caller | "that skill is private to its creator. want to fork it via /implexa:fork instead?" |
-| `Skill is archived` / `draft` | status check failed | "that skill is in {status} state. only active skills can be applied. ask the creator to activate it, or fork via /implexa:fork." |
+| `Forbidden` from apply_org_skill | private skill not owned by the caller | "that skill is private to its creator. want to fork it? just say 'fork this skill'." |
+| `Skill is archived` / `draft` | status check failed | "that skill is in {status} state. only active skills can be applied. ask the creator to activate it, or fork it (just say 'fork it')." |
 | `skill not found in the cross-vendor index` from apply_recommended_skill | source row was removed | "that skill was removed from {source}. try a different recommendation, or browse the source directly." |
 | `skill was indexed without content` from apply_recommended_skill | source row has empty content | "no content available for that one. here's the source URL if you want to install manually: {source_url}." |
-| Both backends 0 matches | the query has nothing | "no matches in your library or the open ecosystem. try /implexa:record-skill to capture a new workflow, or rephrase the query." |
+| Both backends 0 matches | the query has nothing | "no matches in your library or the open ecosystem. try /implexa:record to capture a new workflow, or rephrase the query." |

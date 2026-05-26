@@ -20,7 +20,7 @@ Free forever. No credit card. MIT-licensed plugin · hosted service.
 
 ## What it does
 
-`/implexa:record-skill` is the killer feature. Demonstrate any workflow once. Implexa captures every tool call + conversation turn, runs a structured Haiku-powered interview to lock the intent, and emits a **6-component skill** (intent + inputs + procedure + decision points + output contract + outcome signal) that's:
+`/implexa:record` is the killer feature. Demonstrate any workflow once. Implexa captures every tool call + conversation turn, runs a structured Haiku-powered interview to lock the intent, and emits a **6-component skill** (intent + inputs + procedure + decision points + output contract + outcome signal) that's:
 
 - **Replayable** — `/implexa:run "the prospecting one"` fuzzy-matches your library and re-executes
 - **Measurable** — outcomes attribute back via last-touch within a 30-day window
@@ -50,15 +50,15 @@ claude
 Verify the connection:
 
 ```
-/implexa:setup
+/implexa:help
 ```
 
-You should see `✅ You're connected to Implexa` with your email + plan + capture quota.
+You should see the 7 commands + your current credit balance + plan tier.
 
 ### 3. Record your first skill
 
 ```
-/implexa:record-skill
+/implexa:record
 ```
 
 Tell Claude what you're about to demonstrate, then do your work normally. Implexa watches in the background. When you're done, it asks 2–4 questions to fill in gaps, then saves the skill. Total time: ~3 minutes.
@@ -97,34 +97,28 @@ Everyone in the org now has the power user's stack — without having to discove
 
 ## What's in the plugin
 
-### Recording + running
+### The 7 visible commands (0.16.0+)
 
 | Skill | What it does |
 |---|---|
-| `/implexa:record-skill` | The killer feature — demonstrate once → 6-component skill |
-| `/implexa:save-this` | Post-hoc capture of work you just did (no demo flow) |
-| `/implexa:run` | Fuzzy-match + execute a skill from your library |
-| `/implexa:my-skills` | Browse your personal library |
-| `/implexa:org-skills` | Browse your org's shared library |
-| `/implexa:playbooks` | Browse the 30 base Playbooks (sales, recruiting, finance, etc.) |
-| `/implexa:fork` | Clone any skill into your org for customization |
+| `/implexa:suggest [for X]` | Find skills — active search if you give a query, passive buffer pull if you don't |
+| `/implexa:run <skill or prompt>` | Find + apply the best-fit skill from your library OR the cross-vendor graph |
+| `/implexa:record` | Capture a workflow as a skill — new from demo, post-hoc save, or update existing via re-record |
+| `/implexa:my-skills [scope]` | Browse libraries — `personal` (default), `team`, `org`, `public` (Playbooks + cross-org) |
+| `/implexa:schedule <skill> <cadence>` | Schedule any skill to run on a recurrence — dashboard or Slack delivery |
+| `/implexa:share-this` | Generate a share link — team-gated (your domain) or public (anywhere) |
+| `/implexa:help` | This list + your current credit balance + plan tier |
 
-### Sharing + measurement
+Plus one internal: `/implexa:run-scheduled` (callback fired by Claude Code's scheduled-tasks runtime — not user-invocable).
 
-| Skill | What it does |
-|---|---|
-| `/implexa:share-this` | Generate a share link — team-gated or public |
-| `/implexa:publish-to-clawhub` | Publish a universal skill to the ClawHub public marketplace in one shot |
-| `/implexa:skill-roi` | Outcome attribution: which skills are driving real outcomes |
+### Why only 7?
 
-### Setup + admin
+We consolidated from 20 commands (0.15.0) to 7 (0.16.0) because the long tail (fork, morning brief, skill-roi, clawhub publish, get-me-started, setup-hooks, etc.) is covered better by natural-language invocation. The MCP tools that powered the old commands are all still exposed — the model routes asks like `"give me my morning brief"`, `"fork the X skill"`, `"publish my Y to ClawHub"`, `"show me skill ROI"` straight to the underlying tool. No memorization needed.
 
-| Skill | What it does |
-|---|---|
-| `/implexa:setup` | Verify connection + show authenticated identity + quota |
-| `/implexa:setup-hooks` | Re-run the hooks installer if conversation capture isn't working |
-| `/implexa:get-me-started` | First-run activation — install first skill |
-| `/implexa:help` | FAQ + onboarding |
+The old commands that merged into survivors:
+- `/implexa:save-this` + `/implexa:update-skill` → folded into `/implexa:record` (three entry intents in one flow)
+- `/implexa:org-skills` + `/implexa:playbooks` → folded into `/implexa:my-skills` via the `scope` parameter
+- `/implexa:credits` → folded into `/implexa:help` (balance now shown inline)
 
 ---
 
