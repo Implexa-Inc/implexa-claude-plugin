@@ -190,9 +190,64 @@ Scope icons:
 When the user picks, resolve to that skill and go to Step 5's
 apply_org_skill path.
 
-## Step 7, after applying, surface context (optional)
+## Step 7, ask for feedback (Like / Dislike / Improve)
 
-Once the skill finishes, mention ONE of:
+After the skill finishes its work, prompt the user for a quick reaction
+so we can feed SkillRank. Use this exact line:
+
+> how was that? **like** (👍), **dislike** (👎), or **improve** (✏️) — or just keep going
+
+The three responses route as follows. The id you'll pass through is:
+- `aggregated_skill_id` from `skill_metadata.id` (cross-vendor applies), OR
+- `org_skill_id` from the apply_org_skill response (personal/team/system),
+- `applied_skill_event_id` from whichever apply call you just made (always
+  pass this so we can attribute the rating back to the specific run).
+
+### like (positive signal)
+
+Call `mcp__implexa__submit_skill_feedback` with:
+```json
+{ "aggregated_skill_id" or "org_skill_id": "...", "rating": "like",
+  "applied_skill_event_id": "..." }
+```
+Then reply briefly: `noted, that helps the rank. keep going.`
+
+### dislike (negative signal)
+
+Call `mcp__implexa__submit_skill_feedback` with:
+```json
+{ "...": "...", "rating": "dislike", "applied_skill_event_id": "..." }
+```
+Optionally ask "anything specific?" — if the user answers, pass that as
+`comment`. Reply briefly: `got it, dropping the rank. try /implexa:suggest for an alternative.`
+
+### improve (re-record path)
+
+Ask the user: "what would you change about this skill?" — capture their
+answer as the comment.
+
+Then call `mcp__implexa__submit_skill_feedback` with:
+```json
+{ "...": "...", "rating": "improve",
+  "comment": "<the user's answer>",
+  "applied_skill_event_id": "..." }
+```
+
+The tool returns `nextAction` instructing you to chain into update-skill.
+Invoke `/implexa:update-skill` (slash command) referencing the skill the
+user just ran. The user's improvement comment becomes the starting
+context for the re-record session.
+
+### no response (user just keeps working)
+
+If the user types anything that isn't a clear like/dislike/improve, treat
+it as "keep going" and do nothing — silence is the most common path.
+
+## Step 8, surface context (optional, only when relevant)
+
+If the feedback turn ended quickly (user clicked like or skipped), you
+can optionally mention ONE of these — keep to ONE line, skip entirely
+if it doesn't fit:
 - "that was the Nth time this skill ran in your org" (engagement signal)
 - "skills like this have driven $X in attributed outcomes" (if outcome
   stats exist on the skill)
@@ -200,8 +255,6 @@ Once the skill finishes, mention ONE of:
   still private and seems valuable)
 - "want to fork this cross-vendor skill into your org? use /implexa:fork"
   (only for cross-vendor applies the user might want to customize)
-
-Keep it to ONE line. Skip entirely if context doesn't fit.
 
 ## Edge cases
 
