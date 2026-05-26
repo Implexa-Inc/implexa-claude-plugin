@@ -12,6 +12,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.16.0] - 2026-05-27
+
+Consolidate the slash-command surface from 20 to 7 visible commands (plus 1
+internal callback). The long tail moves to natural-language invocation;
+the underlying MCP tools all stay exposed, so asks like "fork this skill",
+"give me my morning brief", "publish my X to ClawHub", "show me skill ROI"
+still route correctly without a memorized slash command.
+
+### The final 7 (autocomplete-discoverable)
+
+| command | what it does |
+|---|---|
+| `/implexa:suggest` | find skills (active search or passive buffer pull) |
+| `/implexa:run` | unified recommender across library + cross-vendor graph |
+| `/implexa:record` | capture a workflow as a skill — 3 entry intents in one flow |
+| `/implexa:my-skills [scope]` | browse libraries — personal (default) / team / org / public |
+| `/implexa:schedule` | schedule any skill on a recurrence |
+| `/implexa:share-this` | team-gated or public share link |
+| `/implexa:help` | command list + your current credit balance |
+
+Plus `/implexa:run-scheduled` internally (the scheduler callback).
+
+### Merges
+
+- `/implexa:save-this` + `/implexa:update-skill` → folded into `/implexa:record`.
+  The skill now branches in Phase 0:
+  - **Branch A** — new skill via live demonstration (the existing flow)
+  - **Branch B** — post-hoc save via `capture_workflow_as_skill` (no demo)
+  - **Branch C** — update existing via re-record, finalize with `replacingSkillId`
+- `/implexa:org-skills` + `/implexa:playbooks` → folded into `/implexa:my-skills`
+  via a `scope` argument:
+  - `personal` (default — your authored skills, current behavior)
+  - `team` / `org` — full org library (everyone's saved skills + base Playbooks)
+  - `public` — base Playbooks + cross-org universal skills
+- `/implexa:credits` → folded into `/implexa:help`. Balance + plan tier shown
+  at the top of the help page.
+
+### Removed (now natural-language only)
+
+- `/implexa:fork` — say "fork this skill" / "fork the X Playbook into my org"
+- `/implexa:morning` — say "give me my morning brief" — orchestrates via `orchestrate_skills`
+- `/implexa:skill-roi` — say "show me skill ROI" / "which skills are driving outcomes"
+- `/implexa:publish-to-clawhub` — say "publish my X skill to ClawHub"
+- `/implexa:get-me-started` — first-run flow now lives in the install script's "next steps" output
+- `/implexa:setup` — install script handles setup; if the MCP isn't connected, the user re-runs the installer
+- `/implexa:setup-hooks` — same as setup
+
+### Migration
+
+Users who memorized the old commands can either:
+- Switch to the new shape (`/implexa:record` instead of `/implexa:record-skill`,
+  `/implexa:my-skills team` instead of `/implexa:org-skills`, etc.)
+- Or just ask in natural language. The MCP tools the old commands fronted are
+  still exposed; the model routes most asks correctly without a slash.
+
+### Updated
+
+- `README.md` — new command catalogue + a "why only 7?" section.
+- `scripts/install-user-hooks.sh` — next-steps message now points at
+  `/implexa:help` (verification) and `/implexa:record` (first skill).
+- `hooks/recommend-on-prompt.sh` — `implexa update` fallback message
+  recommends natural-language fork + `/implexa:share-this` instead of the
+  removed `/implexa:fork`.
+
 ## [0.15.0] - 2026-05-25
 
 SkillRank phase A — data-collection foundation for Implexa's proprietary

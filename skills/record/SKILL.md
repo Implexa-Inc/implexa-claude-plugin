@@ -1,29 +1,87 @@
 ---
-description: 'Capture a workflow as a structured skill by demonstrating it once — OR update an existing skill by re-recording into it. Use when the user says "record a skill", "record this", "record this workflow", "watch me do this once", "let me show you", "I''ll do this once and you save it", "capture this as a skill", "improve my X skill", "update my X skill by re-recording", "add a step to my X skill via demonstration", or invokes /implexa:record-skill. THE killer feature of the Skill Graph — turns one demonstration into a reusable, conditional, measurable skill via post-hoc structured interview. ALSO the right path for adding new procedural steps to existing skills (vs update_org_skill which only text-edits — fine for typos but doesn''t capture new tool calls).'
+description: 'Capture a workflow as a structured skill. Three entry intents in one flow: (A) NEW skill via live demonstration, (B) POST-HOC save of work just completed (no demo needed), or (C) UPDATE an existing skill by re-recording. Use when the user says "record a skill", "record this", "watch me do this once", "capture this as a skill", "save this", "save this as a skill", "make that a workflow", "save what we just did", "improve my X skill", "update my X skill by re-recording", "add a step to my Y skill via demo", or invokes /implexa:record. THE killer feature of the Skill Graph — one demonstration becomes a reusable, conditional, measurable skill via a post-hoc structured interview. Absorbs the old /implexa:save-this (now Branch B) and /implexa:update-skill (now Branch C).'
 ---
 
-# Watch me do this once → save as a skill
+# Capture a workflow as a skill (3 intents in one flow)
 
-The user wants to demonstrate a workflow once and have it captured as a reusable skill — properly structured (not just a saved prompt), with conditionals, output contract, and outcome signal extracted via a post-demonstration interview.
+The user wants to turn a workflow into a structured, reusable skill — properly built (intent + inputs + procedure + decision points + output contract + outcome signal), not just a saved prompt. Three intents trigger this flow; pick the right branch upfront.
 
-This is a 3-phase flow with a branch upfront (new vs update existing).
+## Phase 0 — Which entry intent?
 
-## Phase 0 — New skill or update existing?
+Detect from the user's phrasing and pick one of three branches. Ask only when truly ambiguous.
 
-Before starting the recording, find out which path this is. The flow + payload differ at the finalize step.
+| User said | Branch | What it does |
+|---|---|---|
+| "record a skill", "watch me do X", "capture this workflow", "I'll demonstrate this once" | **A — new via demo** | Start a fresh demonstration recording, then interview + finalize as a new skill. |
+| "save this", "save what we just did", "make that a skill", "remember this for next time", "turn this into a workflow" | **B — post-hoc save** | No live demo needed; reconstruct the workflow from the existing session trace and save via `capture_workflow_as_skill`. |
+| "update my X skill", "improve my Y skill", "add a step to my Z via demo", "re-record my prospecting skill" | **C — update existing via re-record** | Identify the target skill, start a recording for the NEW behavior only, finalize with `replacingSkillId` so Haiku merges the demo into the existing SKILL.md. |
 
-**Note:** if the user clearly intends to UPDATE an existing skill, prefer `/implexa:update-skill` as the entry point — it's purpose-built for that flow and skips the new-vs-update branching. The Phase 0 below is for cases where the user invoked `/implexa:record-skill` directly and the intent is ambiguous.
+Branches A and C share Phases 1-3 (start recording, observe, interview, finalize) with one difference at finalize (Branch C passes `replacingSkillId`). Branch B is shorter — skip to "Branch B — Post-hoc capture" below.
 
-### When to ask explicitly
+Ambiguous case (*"record a skill that adds a step to X"*) → ask:
 
-Ask only if you don't already know from the user's phrasing. **Don't ask if it's obvious**:
-- *"record a skill for X"*, *"watch me do X"*, *"capture this"* → **new skill**. Skip to Phase 1.
-- *"update my X skill by re-recording"*, *"add a step to my prospecting skill via demo"*, *"improve my hackernews drafter"*, *"re-record my Y skill with one more step"* → **update existing**. Continue this step (or redirect to `/implexa:update-skill` if the user prefers a guided flow).
-- Ambiguous (*"record a skill that adds a step to X"*) → ask:
+> *"Is this a fresh new skill (A), a save of what we just did (B), or a re-record into an existing one (C)?"*
 
-> *"Is this a fresh new skill, or are you re-recording into an existing one (e.g. adding a step to a skill you already have)?"*
+---
 
-### If updating an existing skill
+## Branch B — Post-hoc capture (save what we just did)
+
+The user already did the work; they just want it saved as a skill. Skip the live demonstration. Reconstruct the workflow from the session trace and call `capture_workflow_as_skill` directly.
+
+### Step B1 — Confirm the user's INTENT in one sentence
+
+This is the most important step. The captured trace tells us WHAT was done; only the user can tell us WHY. Ask:
+
+> *"In one sentence, what were you trying to accomplish?"*
+
+Examples of good intent:
+- *"Warm up an enterprise customer who's up for renewal in 90 days."*
+- *"Find candidates for a Bullhorn job order that came in this morning."*
+- *"Build a competitive landscape brief for a target company before a sales meeting."*
+
+If they give a vague answer ("doing some research"), push back ONCE: *"Can you say it more specifically — what's the goal?"*
+
+### Step B2 — Propose a skill name
+
+Take the intent and propose 2-5 words, action-flavored (e.g. "Warm up enterprise renewal", "Fill this Bullhorn role"). Confirm with the user; offer 2-3 alternatives if they don't like the first.
+
+### Step B3 — Build inputs from the session trace
+
+Before calling the tool, reconstruct from your own memory of the session:
+
+- `name`: confirmed in B2
+- `intent`: confirmed in B1
+- `toolsUsed`: distinct MCP tool names you called this session (deduplicate)
+- `traceShape`: ordered tool-name sequence
+- `traceSummary`: ONE PARAGRAPH narrative — what you did, in what order, and why each step. This is what Haiku uses most when authoring the SKILL.md.
+- `exampleArgs`: 2-4 specific arg values that illustrate the workflow shape (will be PII-scrubbed)
+
+Be honest in `traceSummary`. If you tried something that didn't work and pivoted, include it — the skill author may render it as a fallback step.
+
+### Step B4 — Call capture_workflow_as_skill
+
+Call **`capture_workflow_as_skill`** with the B3 inputs. Default `scope: "org"` and `activate: false` (creates as draft). Show the user the `contentPreview` (first 800 chars) from the response.
+
+### Step B5 — Confirm activation + offer schedule + offer share
+
+Ask: *"Activate this for everyone in your org?"* — flip status if yes.
+
+Then jump to Phase 3, Step 3f.5 (offer to schedule) and Step 3g (offer to share). Same flow as Branches A/C from finalize onward.
+
+### Notes for Branch B
+
+- **Don't write the SKILL.md yourself.** The tool calls Haiku — drift-prone if you author manually, and you'll skip PII scrubbing.
+- **PII is auto-scrubbed.** If the `scrubReplacements` field is non-empty, mention it: *"I scrubbed N email addresses before saving."*
+- **Don't pad the trace.** If the user only ran 2 tool calls, save a 2-tool skill. Forcing 5 steps when 2 happened produces a worse skill.
+- **One workflow per skill.** If the user did three unrelated workflows, ask which one to save and offer to save the others separately.
+
+---
+
+## Branches A + C — Live demonstration (continue to Phase 1)
+
+If you're on Branch A (new) or Branch C (update existing via re-record), continue below. Branch C has one extra step before Phase 1 — identify the target skill — and one extra arg at finalize (`replacingSkillId`).
+
+### If updating an existing skill (Branch C only)
 
 1. **Identify the target skill**. If the user named it ("update my HN drafter"), call `list_org_skills` with `query: "<user's words>"` and `createdByMe: true` to find the match. If multiple hits, show a numbered list and have the user pick. Capture the resulting `skillId`.
 

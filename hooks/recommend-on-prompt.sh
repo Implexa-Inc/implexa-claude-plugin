@@ -854,7 +854,7 @@ run_explicit_update() {
     target=""
   fi
   emit_additional_context \
-    "The user invoked Implexa with: \"implexa update${target}\". This is the contribute / fork-and-merge flow which is part of P3 (the wiki layer). It is not yet shipped. Tell the user honestly: \"the contribute flow ships in P3 (the wiki layer). until then, you can fork an org-scoped skill via /implexa:fork, edit it, and re-share it.\" Do not pretend the feature works."
+    "The user invoked Implexa with: \"implexa update${target}\". This is the contribute / fork-and-merge flow which is part of P3 (the wiki layer). It is not yet shipped. Tell the user honestly: \"the contribute flow ships in P3 (the wiki layer). until then, ask 'fork an org-scoped skill into my org', edit it, then run /implexa:share-this to redistribute.\" Do not pretend the feature works."
   hook_log "explicit_action" "update_p3_pending" "${args:0:40}"
   return 0
 }
