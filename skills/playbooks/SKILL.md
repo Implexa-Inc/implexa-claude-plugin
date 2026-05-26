@@ -1,5 +1,5 @@
 ---
-description: Browse the 30 base "Playbooks" — system-scoped read-only skills that ship with every install across 7 verticals (GTM, Talent Acquisition, Customer Success, Product Engineering, People Ops, Finance, Marketing). Use when the user says "show me the playbooks", "what playbooks does Implexa have", "browse base skills", "what comes built-in", "playbook library", "show me what Implexa ships with", or wants to discover skills before forking them. The discovery surface for the base library — every Playbook can be invoked directly OR forked into the user's org for customization.
+description: 'Browse the 30 base "Playbooks" — system-scoped read-only skills that ship with every install across 7 verticals (GTM, Talent Acquisition, Customer Success, Product Engineering, People Ops, Finance, Marketing). Use when the user says "show me the playbooks", "what playbooks does Implexa have", "browse base skills", "what comes built-in", "playbook library", "show me what Implexa ships with", or wants to discover skills before forking them. The discovery surface for the base library — every Playbook can be invoked directly OR forked into the user''s org for customization.'
 ---
 
 # Browse Playbooks (the base library)

@@ -1,5 +1,5 @@
 ---
-description: Update an existing skill by re-recording — add a step, refine a branch, or extend the behavior. Use when the user says "update my X skill", "improve my X skill", "add a step to my X skill", "re-record my X skill", "refine my X skill", "modify my Y workflow", "extend my Z skill", or invokes /implexa:update-skill. This is the RE-RECORD path — the user demonstrates the new behavior live and the existing skill's content gets MERGED with the new demonstration (existing steps preserved, new step integrated, error handling appended). For text-only changes (typos, renames, copy polish), use update_org_skill instead.
+description: 'Update an existing skill by re-recording — add a step, refine a branch, or extend the behavior. Use when the user says "update my X skill", "improve my X skill", "add a step to my X skill", "re-record my X skill", "refine my X skill", "modify my Y workflow", "extend my Z skill", or invokes /implexa:update-skill. This is the RE-RECORD path — the user demonstrates the new behavior live and the existing skill''s content gets MERGED with the new demonstration (existing steps preserved, new step integrated, error handling appended). For text-only changes (typos, renames, copy polish), use update_org_skill instead.'
 ---
 
 # Update an existing skill (re-record + merge)

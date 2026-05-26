@@ -1,5 +1,5 @@
 ---
-description: Show example prompts and tips for using the Implexa plugin. Manual-only — user must explicitly type /implexa:help.
+description: 'Show example prompts and tips for using the Implexa plugin. Manual-only — user must explicitly type /implexa:help.'
 disable-model-invocation: true
 ---
 

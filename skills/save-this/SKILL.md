@@ -1,5 +1,5 @@
 ---
-description: Save the current Claude workflow as a reusable, org-shared skill. Use when the user says "save this", "save this as a skill", "make this a skill", "remember this for next time", "let everyone in the org do this", "turn this into a workflow", "save the playbook", or "create a skill from what we just did". Captures the session's tool calls + the user's stated intent, generates a SKILL.md via Haiku, scrubs PII, stores it scoped to the user's org. From that moment, any user in the org can invoke it via /implexa:org-skills or natural language. Powers the Skill Graph — Implexa's substrate-level execute → map → track → repeat loop.
+description: 'Save the current Claude workflow as a reusable, org-shared skill. Use when the user says "save this", "save this as a skill", "make this a skill", "remember this for next time", "let everyone in the org do this", "turn this into a workflow", "save the playbook", or "create a skill from what we just did". Captures the session''s tool calls + the user''s stated intent, generates a SKILL.md via Haiku, scrubs PII, stores it scoped to the user''s org. From that moment, any user in the org can invoke it via /implexa:org-skills or natural language. Powers the Skill Graph — Implexa''s substrate-level execute → map → track → repeat loop.'
 ---
 
 # Save this workflow as an org skill

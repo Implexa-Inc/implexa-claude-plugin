@@ -1,5 +1,5 @@
 ---
-description: One-time setup to enable full capture during /implexa:record-skill. Installs user-level hooks needed for Claude Desktop / Cowork (plugin hooks alone don't fire there). Use when first installing Implexa OR when conversationTurns is 0 in your captured demos. Trigger phrases: setup hooks, enable hooks, fix capture, configure capture, install user hooks.
+description: 'One-time setup to enable full capture during /implexa:record-skill. Installs user-level hooks needed for Claude Desktop / Cowork (plugin hooks alone don''t fire there). Use when first installing Implexa OR when conversationTurns is 0 in your captured demos. Trigger phrases: setup hooks, enable hooks, fix capture, configure capture, install user hooks.'
 ---
 
 # Set up host-side capture hooks

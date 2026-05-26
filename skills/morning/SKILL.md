@@ -1,5 +1,5 @@
 ---
-description: Run the user's morning brief — chains existing skills (standup from yesterday's commits + daily AI signal) into one terse update. Use when the user says "my morning brief", "run my morning", "morning update", "what's the deal today", "catch me up", or invokes /implexa:morning. THE primary entry point for orchestrated skill chains — composes multiple existing skills into a single user-facing run via the `orchestrate_skills` MCP tool. Prefer this over running each skill individually when the user wants their daily kickoff.
+description: 'Run the user''s morning brief — chains existing skills (standup from yesterday''s commits + daily AI signal) into one terse update. Use when the user says "my morning brief", "run my morning", "morning update", "what''s the deal today", "catch me up", or invokes /implexa:morning. THE primary entry point for orchestrated skill chains — composes multiple existing skills into a single user-facing run via the `orchestrate_skills` MCP tool. Prefer this over running each skill individually when the user wants their daily kickoff.'
 ---
 
 # Morning brief — chained skill orchestration

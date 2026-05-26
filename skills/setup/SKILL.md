@@ -1,5 +1,5 @@
 ---
-description: First-time setup — get an Implexa API key and configure it. Also self-diagnoses connection problems (key not set, invalid key, plugin not loaded). Manual-only — user must explicitly type /implexa:setup.
+description: 'First-time setup — get an Implexa API key and configure it. Also self-diagnoses connection problems (key not set, invalid key, plugin not loaded). Manual-only — user must explicitly type /implexa:setup.'
 disable-model-invocation: true
 ---
 

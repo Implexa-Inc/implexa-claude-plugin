@@ -1,5 +1,5 @@
 ---
-description: Show recent skill recommendations Implexa noticed for you. Reads the server-side recommendation buffer populated by the ambient hook (Claude Code) and by every explicit implexa search (works on any runtime). Use when the user says "show me what implexa noticed", "what did implexa find", "implexa recommendations", "implexa picks", "implexa what do you have", "what's implexa got for me", or invokes /implexa:suggest. The pull-based half of the dual-mode recommender. Each entry shows the skill name, source registry, fit reason, the prompt excerpt that triggered the match, and a source URL. The user can pick one to apply inline.
+description: 'Show recent skill recommendations Implexa noticed for you. Reads the server-side recommendation buffer populated by the ambient hook (Claude Code) and by every explicit implexa search (works on any runtime). Use when the user says "show me what implexa noticed", "what did implexa find", "implexa recommendations", "implexa picks", "implexa what do you have", "what''s implexa got for me", or invokes /implexa:suggest. The pull-based half of the dual-mode recommender. Each entry shows the skill name, source registry, fit reason, the prompt excerpt that triggered the match, and a source URL. The user can pick one to apply inline.'
 ---
 
 # implexa:suggest, pull recent recommendations

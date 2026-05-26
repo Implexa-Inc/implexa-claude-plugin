@@ -1,5 +1,5 @@
 ---
-description: First-time user activation flow — get a polished result in under 10 minutes by running a base Playbook against the user's real data. Use when the user says "get me started", "show me what Implexa does", "first time using this", "what can you do for me", "demo this", "show me a quick win", or just installed Implexa for the first time. The activation hook that converts curiosity into adoption — paste a prospect/company/role → run a base Playbook end-to-end → polished output → save as your version → first skill in your library.
+description: 'First-time user activation flow — get a polished result in under 10 minutes by running a base Playbook against the user''s real data. Use when the user says "get me started", "show me what Implexa does", "first time using this", "what can you do for me", "demo this", "show me a quick win", or just installed Implexa for the first time. The activation hook that converts curiosity into adoption — paste a prospect/company/role → run a base Playbook end-to-end → polished output → save as your version → first skill in your library.'
 ---
 
 # Get me started — your first 10 minutes with Implexa

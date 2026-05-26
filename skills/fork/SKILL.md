@@ -1,5 +1,5 @@
 ---
-description: Fork (clone) any skill into your own org so you can customize it. Use when the user says "fork this skill", "make a copy", "I want my own version", "customize this skill", "duplicate this", or wants to start from a base Playbook and personalize it. Source can be a system Playbook, one of your own org skills, or another org's skill via a share token. Lineage is recorded — the dashboard shows where every fork came from.
+description: 'Fork (clone) any skill into your own org so you can customize it. Use when the user says "fork this skill", "make a copy", "I want my own version", "customize this skill", "duplicate this", or wants to start from a base Playbook and personalize it. Source can be a system Playbook, one of your own org skills, or another org''s skill via a share token. Lineage is recorded — the dashboard shows where every fork came from.'
 ---
 
 # Fork a skill into your org

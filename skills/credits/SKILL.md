@@ -1,5 +1,5 @@
 ---
-description: Show the user's current Implexa credit balance, plan tier, and usage. Manual-only — user must explicitly type /implexa:credits.
+description: 'Show the user''s current Implexa credit balance, plan tier, and usage. Manual-only — user must explicitly type /implexa:credits.'
 disable-model-invocation: true
 ---
 
