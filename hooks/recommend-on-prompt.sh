@@ -143,6 +143,7 @@ if [ ! -f "$STATE_FILE" ]; then
 fi
 
 SESSION_ID=$(jq -r '.session_id // empty' "$STATE_FILE" 2>/dev/null)
+if [ -z "$SESSION_ID" ]; then SESSION_ID="hook-$(date +%s)-$$"; fi
 
 # ─── Invocation detection ───────────────────────────────────────────────
 # Three modes:
@@ -546,7 +547,7 @@ run_ambient() {
   # against multi-paragraph SKILL.md descriptions.
   local word_count
   word_count=$(printf "%s" "$PROMPT" | wc -w | tr -d '[:space:]')
-  if [ "${word_count:-0}" -lt 8 ]; then
+  if [ "${word_count:-0}" -lt 3 ]; then
     hook_log "word_count" "filtered" "${word_count} < 8"
     return 0
   fi
@@ -570,7 +571,7 @@ run_ambient() {
   local now_s since
   now_s=$(date +%s)
   since=$(( now_s - last_fired ))
-  if [ "$last_fired" -gt 0 ] && [ "$since" -lt 90 ]; then
+  if [ "$last_fired" -gt 0 ] && [ "$since" -lt 30 ]; then
     hook_log "rate_limit" "filtered" "${since}s < 90s"
     return 0
   fi
@@ -662,6 +663,25 @@ run_ambient() {
   # Backgrounded inside the helper, never blocks the hook return.
   maybe_record_signature
 
+  # ─── Verified-module trust-card: the ONE ambient interrupt ────────────
+  # Ambient stays silent for ordinary skill matches (buffered above). But a
+  # verified-module candidate is the high-value "fire BEFORE the model writes
+  # code from memory" moment, so we break silence for it, and only it. The
+  # relative-gap gate already filtered to a confident prompt, and the 90s
+  # rate-limit gate above keeps it from repeating.
+  local module_pkg next_action
+  module_pkg=$(jq -r '.module_candidate.module.package // empty' <<< "$inner" 2>/dev/null)
+  if [ -n "$module_pkg" ]; then
+    next_action=$(jq -r '.nextAction // empty' <<< "$inner" 2>/dev/null)
+    if [ -n "$next_action" ]; then
+      hook_log "match" "module_card_fired" "$module_pkg"
+      emit_additional_context \
+        "$next_action" \
+        "implexa: verified module ($module_pkg) available for this, your call"
+      return 0
+    fi
+  fi
+
   # Output absolutely nothing — silence is the surface in ambient mode.
   return 0
 }
@@ -731,6 +751,24 @@ run_explicit_search() {
     | join("\n\n")
   ' <<< "$inner" 2>/dev/null)
 
+  # Lead with the verified-module trust-card when the recommender returned one.
+  # The nextAction is the directive to verify_module + render the card + apply
+  # the paired skill; the cross-vendor matches below become "alternatives".
+  local module_lead=""
+  local mod_pkg
+  mod_pkg=$(jq -r '.module_candidate.module.package // empty' <<< "$inner" 2>/dev/null)
+  if [ -n "$mod_pkg" ]; then
+    local na
+    na=$(jq -r '.nextAction // empty' <<< "$inner" 2>/dev/null)
+    if [ -n "$na" ]; then
+      module_lead="${na}
+
+After the trust-card above, you may surface these related cross-vendor skills as alternatives the user could also consider:
+
+"
+    fi
+  fi
+
   local ctx
   ctx="The user invoked Implexa directly with the query: \"${query}\"
 
@@ -742,8 +780,8 @@ These results came from the user's direct invocation of Implexa. Present them as
 
 After the list, ask which one (if any) the user wants to apply INLINE. If they say yes / a number / a slug / \"run it\" / \"apply\" / \"go ahead\" / any clear affirmative, call the MCP tool mcp__implexa__apply_recommended_skill with the slug, source, and recommendation_event_id from the chosen entry. The tool returns the full SKILL.md content as skill_content plus an execution_instruction. Execute that SKILL.md immediately against the user's original request — do not summarize what the skill does or ask further clarifying questions about the recommendation itself; the skill defines its own structure (6 components: intent, inputs, procedure, decision points, output contract, outcome signal) and you should follow that structure end-to-end. If the user dismisses, declines, or just continues with something else, do not apply anything — the recommender is ambient, never blocking."
 
-  emit_additional_context "$ctx" "implexa: ${matches_count} match(es) for \"${query:0:40}\""
-  hook_log "explicit" "surfaced" "${matches_count}_matches:${first_slug}"
+  emit_additional_context "${module_lead}${ctx}" "implexa: ${matches_count} match(es) for \"${query:0:40}\"${mod_pkg:+ + verified module ($mod_pkg)}"
+  hook_log "explicit" "surfaced" "${matches_count}_matches:${first_slug}${mod_pkg:+:mod=$mod_pkg}"
 
   # SkillRank phase A — best-effort signature write. Explicit invocations
   # are higher-intent than ambient prompts so they're worth feeding the

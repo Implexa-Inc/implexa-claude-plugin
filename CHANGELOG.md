@@ -12,6 +12,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.17.0] - 2026-05-31
+
+Verified-module trust-card surfaces ambiently. When a build prompt matches a
+verified open-source module (paired skill + live trust signals), the ambient
+hook now breaks its silence to surface the card before the model generates a
+dependency choice from memory. Stays silent for ordinary skill matches.
+
+### Added
+
+- **Ambient verified-module trust-card.** The recommend hook now emits the
+  module trust-card as additionalContext when the backend returns a
+  module_candidate (and only then). Ordinary skill matches still buffer
+  silently for /implexa:suggest. This is the "fire before you hand-roll it"
+  surface from the modules work.
+- **Explicit + run-skill lead with the card.** The "implexa, <query>" hook path
+  and the /implexa:run skill now lead with the verified-module card when one is
+  present (verify_module for live signals, then the paired skill as an option),
+  instead of only listing skill matches.
+
+### Changed
+
+- **Word-count gate 8 -> 3.** The ambient gate was filtering most natural build
+  prompts ("add stripe billing", "add magic-link login" are 3-4 words). The
+  server-side relevance + relative-gap gates already filter noise, so the cheap
+  word pre-filter no longer needs to be this aggressive.
+- **Card framing is a recommendation, not a command** (backend nextAction). The
+  agent surfaces the verified module as an option and lets the user pick, which
+  works with Claude's prompt-injection defense instead of tripping it.
+
+### Fixed
+
+- **Empty sessionId no longer breaks the hook.** A missing session_id in the
+  local state file would send an empty sessionId, which the backend rejects
+  (min 1 char), killing the hook silently under set -e. The hook now generates
+  a fallback session id when one is missing.
+
 ## [0.16.0] - 2026-05-27
 
 Consolidate the slash-command surface from 20 to 7 visible commands (plus 1
