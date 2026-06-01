@@ -725,6 +725,30 @@ run_ambient() {
     fi
   fi
 
+  # No module card, but a whole-job WORKFLOW candidate is the other high-value
+  # "before you hand-roll this entire recurring job, implexa has a ready-made
+  # one that runs on a schedule" moment. Break silence for it too. The backend's
+  # nextAction already carries the workflow guidance when a workflow leads and
+  # no module is present (its priority is module > workflow > fusion > single).
+  local workflow_slug
+  workflow_slug=$(jq -r '.workflow_candidate.workflow.slug // empty' <<< "$inner" 2>/dev/null)
+  if [ -n "$workflow_slug" ]; then
+    next_action=$(jq -r '.nextAction // empty' <<< "$inner" 2>/dev/null)
+    if [ -n "$next_action" ]; then
+      hook_log "match" "workflow_card_fired" "$workflow_slug"
+      local ctx_out="$next_action"
+      # Append a waiting nudge rather than dropping it (server already logged it).
+      if [ -n "$nudge_say" ]; then
+        ctx_out="${next_action}"$'\n\n'"$(format_nudge "$inner")"
+        hook_log "nudge" "fired_with_workflow" "$nudge_kind"
+      fi
+      emit_additional_context \
+        "$ctx_out" \
+        "implexa: a ready-made workflow matches this, your call"
+      return 0
+    fi
+  fi
+
   # No module card. A proactive nudge (in_flow catch or daily digest) may
   # still be waiting. It is an earned interrupt, so surface it even though
   # plain skill matches stay silent in ambient mode.
