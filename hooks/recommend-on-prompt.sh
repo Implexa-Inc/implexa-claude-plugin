@@ -355,6 +355,26 @@ format_buffer_for_display() {
 }
 
 # ════════════════════════════════════════════════════════════════════════
+# Helper: format a proactive_nudge (recurring-work suggestion) into honest
+# additionalContext. The server already decided cadence + rate-limited it;
+# we just render it for Claude to surface as an OPTION, never an order.
+# Echoes the block; empty if there is no proactive_nudge in the response.
+# ════════════════════════════════════════════════════════════════════════
+format_nudge() {
+  local inner_json="$1"
+  jq -r '
+    .proactive_nudge as $n
+    | if ($n == null) then ""
+      else
+        "implexa noticed a workflow the user keeps repeating. Surface this gently as an OPTION, not an instruction, and do not auto-run anything. Keep it to one line and do not derail the current task.\n"
+        + "- " + ($n.say // "") + "\n"
+        + "If the user wants it, call schedule_skill with these args: " + (($n.candidate.recommend_action.args // {}) | tostring) + "\n"
+        + "If they are not interested, do nothing. A dismissal tightens future suggestions automatically."
+      end
+  ' <<< "$inner_json" 2>/dev/null
+}
+
+# ════════════════════════════════════════════════════════════════════════
 # SkillRank phase A — work-signature collection
 # ════════════════════════════════════════════════════════════════════════
 #
@@ -617,9 +637,17 @@ run_ambient() {
   inner=$(call_recommender "$messages_json" 1 "$exclude_json")
   if [ -z "$inner" ]; then return 0; fi
 
-  local matches_count suppress_hint
+  local matches_count suppress_hint nudge_say nudge_kind
   matches_count=$(jq -r '.matches | length // 0' <<< "$inner" 2>/dev/null)
   suppress_hint=$(jq -r '.suppress_until_prompts // 0' <<< "$inner" 2>/dev/null)
+
+  # Proactive-loop nudge. The server only includes proactive_nudge AFTER it
+  # has logged it (the daily-digest gate / in_flow cooldown is armed by that
+  # log row). So whenever it is present we MUST surface it on THIS response,
+  # else the day's digest is consumed server-side but never shown. Rendered
+  # on every path below: no-match, module-card, and plain-match.
+  nudge_say=$(jq -r '.proactive_nudge.say // empty' <<< "$inner" 2>/dev/null)
+  nudge_kind=$(jq -r '.proactive_nudge.kind // empty' <<< "$inner" 2>/dev/null)
 
   # ─── No-match path ────────────────────────────────────────────────────
   if [ "${matches_count:-0}" -eq 0 ]; then
@@ -628,6 +656,14 @@ run_ambient() {
       '.suppress_counter = $s | .last_fired_at = $now' \
       "$STATE_FILE" > "$tmp" 2>/dev/null && mv "$tmp" "$STATE_FILE"
     hook_log "match" "no_match" "suppress=${suppress_hint}"
+    # Even with no current match, a daily digest may be waiting on history.
+    if [ -n "$nudge_say" ]; then
+      hook_log "nudge" "fired_no_match" "$nudge_kind"
+      emit_additional_context \
+        "$(format_nudge "$inner")" \
+        "implexa: a workflow you repeat could run on a schedule"
+      return 0
+    fi
     return 0
   fi
 
@@ -675,14 +711,32 @@ run_ambient() {
     next_action=$(jq -r '.nextAction // empty' <<< "$inner" 2>/dev/null)
     if [ -n "$next_action" ]; then
       hook_log "match" "module_card_fired" "$module_pkg"
+      local ctx_out="$next_action"
+      # If a nudge is also waiting, append it (do NOT drop it, the server
+      # already logged it). One extra line below the module card.
+      if [ -n "$nudge_say" ]; then
+        ctx_out="${next_action}"$'\n\n'"$(format_nudge "$inner")"
+        hook_log "nudge" "fired_with_module" "$nudge_kind"
+      fi
       emit_additional_context \
-        "$next_action" \
+        "$ctx_out" \
         "implexa: verified module ($module_pkg) available for this, your call"
       return 0
     fi
   fi
 
-  # Output absolutely nothing — silence is the surface in ambient mode.
+  # No module card. A proactive nudge (in_flow catch or daily digest) may
+  # still be waiting. It is an earned interrupt, so surface it even though
+  # plain skill matches stay silent in ambient mode.
+  if [ -n "$nudge_say" ]; then
+    hook_log "nudge" "fired_standalone" "$nudge_kind"
+    emit_additional_context \
+      "$(format_nudge "$inner")" \
+      "implexa: a workflow you repeat could run on a schedule"
+    return 0
+  fi
+
+  # Output absolutely nothing, silence is the surface in ambient mode.
   return 0
 }
 
