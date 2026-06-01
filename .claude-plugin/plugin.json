@@ -1,7 +1,7 @@
 {
   "name": "implexa",
-  "version": "0.19.0",
-  "description": "The skill graph for AI work. Demonstrate any workflow once \u2014 Implexa captures decision traces (the WHY behind each step, not just the trajectory) via a post-demo interview, then emits an agentskills.io-compatible SKILL.md that runs in Claude Code, Cursor, Gemini CLI, Hermes, and 30+ more agents. Share with your team (private, org, or public scopes), fork from a public library, and track outcome attribution to see which skills actually moved deals/hires/saves. Built on the Agent Skills open standard, with team sharing + outcome layers on top. Includes ~26 MCP tools for skill graph operations plus external data fetching (company + people search, career history, LinkedIn posts, contacts). Free forever for personal use.",
+  "version": "0.19.1",
+  "description": "Implexa watches how you work in Claude and surfaces the right move before you build it by hand: the best-fit skill from a 40,000+ cross-vendor index (Anthropic, Cursor, Smithery, ClawHub, Skills.sh, GitHub, and more), a verified open-source module (license-safe, provenance-checked, advisory-scanned), or a whole-job workflow such as a daily content pack, a weekly market report, or a morning build brief, each one stitched from verified skills and runnable on a schedule. It also notices the work you repeat and offers to automate it, so your routines run on their own instead of being redone by hand every day. Capture your own workflow once, share it with your team, and track which ones actually deliver. Built on the open Agent Skills standard, runs across Claude Code, Cursor, Codex, and Gemini. Free for personal use.",
   "author": {
     "name": "Implexa",
     "url": "https://implexa.ai"
@@ -10,22 +10,21 @@
   "repository": "https://github.com/Implexa-Inc/implexa-claude-plugin",
   "license": "MIT",
   "keywords": [
-    "skill-graph",
-    "skill-recording",
-    "workflow-capture",
+    "ai-workflows",
+    "workflow-automation",
+    "scheduled-workflows",
+    "skill-recommendations",
+    "verified-modules",
+    "cross-vendor-skills",
     "agent-skills",
     "claude-skills",
+    "claude-code",
+    "skill-graph",
     "outcome-attribution",
     "skill-sharing",
-    "viral-skill",
     "mcp",
-    "mcip",
     "implexa",
-    "company-brain",
-    "knowledge-capture",
-    "automation",
-    "ai-workflows",
     "anthropic-skills",
-    "claude-code"
+    "automation"
   ]
 }
