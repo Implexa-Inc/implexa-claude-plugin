@@ -648,6 +648,11 @@ run_ambient() {
   # on every path below: no-match, module-card, and plain-match.
   nudge_say=$(jq -r '.proactive_nudge.say // empty' <<< "$inner" 2>/dev/null)
   nudge_kind=$(jq -r '.proactive_nudge.kind // empty' <<< "$inner" 2>/dev/null)
+  # Stage 1.5 "never say no": recurring-intent prompt with no ready-made
+  # workflow. The backend's nextAction carries the build-offer guidance when
+  # this is set (and no module/workflow card leads).
+  local generate_offer
+  generate_offer=$(jq -r '.generate_offer.tool // empty' <<< "$inner" 2>/dev/null)
 
   # ─── No-match path ────────────────────────────────────────────────────
   if [ "${matches_count:-0}" -eq 0 ]; then
@@ -663,6 +668,15 @@ run_ambient() {
         "$(format_nudge "$inner")" \
         "implexa: a workflow you repeat could run on a schedule"
       return 0
+    fi
+    # No match, but recurring intent + no workflow: offer to BUILD one.
+    if [ -n "$generate_offer" ]; then
+      local na_g; na_g=$(jq -r '.nextAction // empty' <<< "$inner" 2>/dev/null)
+      if [ -n "$na_g" ]; then
+        hook_log "generate" "fired_no_match" ""
+        emit_additional_context "$na_g" "implexa: no ready-made workflow, can build one"
+        return 0
+      fi
     fi
     return 0
   fi
@@ -745,6 +759,22 @@ run_ambient() {
       emit_additional_context \
         "$ctx_out" \
         "implexa: a ready-made workflow matches this, your call"
+      return 0
+    fi
+  fi
+
+  # No module or workflow card, but recurring intent + no ready-made workflow:
+  # offer to BUILD one (Stage 1.5 "never say no"). The backend's nextAction
+  # carries the build-offer guidance in this case.
+  if [ -n "$generate_offer" ]; then
+    local na_o; na_o=$(jq -r '.nextAction // empty' <<< "$inner" 2>/dev/null)
+    if [ -n "$na_o" ]; then
+      hook_log "generate" "fired_standalone" ""
+      local ctx_o="$na_o"
+      if [ -n "$nudge_say" ]; then
+        ctx_o="${na_o}"$'\n\n'"$(format_nudge "$inner")"
+      fi
+      emit_additional_context "$ctx_o" "implexa: no ready-made workflow, can build one"
       return 0
     fi
   fi
