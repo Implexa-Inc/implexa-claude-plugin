@@ -33,12 +33,31 @@ The tool returns the target skill's slug, name, and full SKILL.md `content`, plu
 }
 ```
 
+**Two payload shapes.** A SKILL schedule returns `skill.content` (above). A WORKFLOW schedule returns `target_type: "workflow"` + a `workflow` object + a `nextAction` describing a whole-job chain (no `skill.content`). Step 2 branches on this — check `target_type`.
+
 If `ok === false`:
 - `paused` → silently exit. Do nothing. The next scheduled fire will re-attempt; the user pauses for a reason.
 - `not found` / `not owned` → log and exit. (Should not happen in normal flow; possibly the user deleted the schedule but the cron task hasn't been canceled yet.)
 - `target skill no longer available` → log and exit. The tool already flipped the manifest to `failed`; the user will see it in /scheduled.
 
-## Step 2 — Execute the resolved skill content
+## Step 2 — Execute (branch on the payload shape)
+
+The payload from Step 1 is ONE of two shapes. Check `target_type`.
+
+### Step 2A — Workflow target (`target_type === "workflow"`)
+
+The payload has no `skill.content`; it has a `workflow` object and a `nextAction` describing a whole-job chain. Follow the `nextAction` exactly:
+
+1. Call **`apply_workflow`** with `{ workflow_id: "<workflow.id>" }`. It returns the ordered chain (skill + tool + decision steps, with SKILL.md bodies inlined for skill steps), the v0.1 adaptation instruction, and a `workflow_run_id`.
+2. **Run the chain end to end.** Adapt each step to the tools actually available in THIS background context. If a step needs a tool you do not have here, skip it and note it (never fabricate a step or its result). This is the same adaptation discipline as an interactive workflow run, just unattended.
+3. Capture the final synthesized output (markdown) — this is what gets persisted + delivered.
+4. Call **`record_workflow_outcome`** with `{ workflow_run_id: "<from step 1>", status: "executed", outcome: { primary: "<one-token result>", note: "<one line on what ran vs skipped + why>", steps_run: [...], steps_skipped: [...] } }`. This closes the workflow loop AND credits every component skill — the data that compounds. Do this BEFORE Step 3.
+
+Then continue to Step 2.5 / Step 3 with the captured markdown output, exactly like a skill run. (For delivery + `record_scheduled_run`, the workflow's output is treated identically to a skill's output.)
+
+If `apply_workflow` or the chain throws, capture a short failure summary as the output, still call `record_workflow_outcome` with `status: "executed"` and a note describing the failure if you got a `workflow_run_id`, then proceed to Step 3 with `status: "failed"`.
+
+### Step 2B — Skill target (`skill.content` present)
 
 The `skill.content` field is the literal SKILL.md body of the target skill. **Follow it as instructions** — top to bottom, calling whichever tools it references (WebSearch, Bash, MCP tools, etc.).
 
