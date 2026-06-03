@@ -390,6 +390,27 @@ format_routine_alert() {
 }
 
 # ════════════════════════════════════════════════════════════════════════
+# Helper: format a workflow_candidate (the whole-job match) into honest
+# additionalContext. Workflows are the lead product, so we surface the WHOLE
+# job, not just a skill, with run + schedule options. Echoes the block; empty
+# if there is no workflow_candidate in the response.
+# ════════════════════════════════════════════════════════════════════════
+format_workflow() {
+  local inner_json="$1"
+  jq -r '
+    .workflow_candidate as $w
+    | if ($w == null) then ""
+      else
+        "implexa has a WHOLE WORKFLOW for what the user is doing, not just a skill. Surface it once, gently, as an OPTION (not an order), and do not derail the current task.\n"
+        + "- " + ($w.pitch // "") + "\n"
+        + "If the user wants it, run it now with apply_workflow(" + (($w.apply_call.args // {}) | tostring) + ")"
+        + (if ($w.schedule_hint != null) then ", and " + $w.schedule_hint + " so it runs on its own." else "." end) + "\n"
+        + "Workflow page: https://implexa.ai/workflows/" + ($w.workflow.slug // "")
+      end
+  ' <<< "$inner_json" 2>/dev/null
+}
+
+# ════════════════════════════════════════════════════════════════════════
 # SkillRank phase A — work-signature collection
 # ════════════════════════════════════════════════════════════════════════
 #
@@ -665,6 +686,24 @@ run_ambient() {
       jq --arg sid "$CLAUDE_SID" '.routine_alert_session = $sid' "$STATE_FILE" > "$tmp_ra" 2>/dev/null && mv "$tmp_ra" "$STATE_FILE"
       hook_log "routine_alert" "fired" ""
       emit_additional_context "$(format_routine_alert "$inner")" "implexa: a scheduled routine did not run"
+      return 0
+    fi
+  fi
+
+  # ─── Workflow-first surfacing: once per session ───────────────────────
+  # When implexa has a WHOLE WORKFLOW for what the user is doing (not just a
+  # skill), surface it in-session, at most once per Claude session. Workflows
+  # are the lead product (run the whole job + schedule it), so unlike ordinary
+  # skill matches they break the ambient silence. Skills still buffer silently.
+  local wf_name wf_shown
+  wf_name=$(jq -r '.workflow_candidate.workflow.name // empty' <<< "$inner" 2>/dev/null)
+  if [ -n "$wf_name" ] && [ -n "$CLAUDE_SID" ]; then
+    wf_shown=$(jq -r '.workflow_candidate_session // empty' "$STATE_FILE" 2>/dev/null)
+    if [ "$wf_shown" != "$CLAUDE_SID" ]; then
+      local tmp_wf="$STATE_FILE.tmp.$$"
+      jq --arg sid "$CLAUDE_SID" '.workflow_candidate_session = $sid' "$STATE_FILE" > "$tmp_wf" 2>/dev/null && mv "$tmp_wf" "$STATE_FILE"
+      hook_log "workflow" "fired" "$wf_name"
+      emit_additional_context "$(format_workflow "$inner")" "implexa: a whole workflow exists for this"
       return 0
     fi
   fi

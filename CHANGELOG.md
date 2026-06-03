@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.26.0] - 2026-06-03
+
+Workflows surface in-session. When implexa has a whole WORKFLOW for what you are
+doing (not just a skill), the ambient hook now surfaces it once per session with
+run + schedule options. Workflows are the lead product, so they break the
+ambient silence; ordinary skill matches still buffer quietly for /implexa:suggest.
+
+### Added
+
+- **In-session workflow surfacing.** The recommend hook reads workflow_candidate
+  from the recommender response and surfaces it as additionalContext at most once
+  per Claude session (with apply_workflow + a schedule hint + the workflow page),
+  alongside the routine-watchdog catch-up. Answers "why do I only see skills, not
+  workflows, while I work".
+
 ## [0.25.0] - 2026-06-03
 
 Edit a workflow by just saying it. New /implexa:edit-workflow skill: "update this
