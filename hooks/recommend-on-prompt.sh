@@ -118,6 +118,10 @@ if [ "$EVENT_NAME" != "UserPromptSubmit" ]; then
   exit 0
 fi
 
+# Claude's session id (stable across a session's prompts). Used to surface the
+# routine-watchdog catch-up at most once per session.
+CLAUDE_SID=$(jq -r '.session_id // empty' <<< "$PAYLOAD" 2>/dev/null)
+
 PROMPT=$(jq -r '.prompt // empty' <<< "$PAYLOAD" 2>/dev/null)
 if [ -z "$PROMPT" ]; then
   hook_log "input" "missing" "empty_prompt"
@@ -372,6 +376,17 @@ format_nudge() {
         + "If they are not interested, do nothing. A dismissal tightens future suggestions automatically."
       end
   ' <<< "$inner_json" 2>/dev/null
+}
+
+# ════════════════════════════════════════════════════════════════════════
+# Helper: format a routine_alert (the N1 watchdog catch-up) into honest
+# additionalContext. The server attaches routine_alert when the user has
+# scheduled routines that did not run on schedule; .say already carries the
+# full gentle framing. Echoes the block; empty if there is no routine_alert.
+# ════════════════════════════════════════════════════════════════════════
+format_routine_alert() {
+  local inner_json="$1"
+  jq -r '.routine_alert.say // empty' <<< "$inner_json" 2>/dev/null
 }
 
 # ════════════════════════════════════════════════════════════════════════
@@ -636,6 +651,23 @@ run_ambient() {
   local inner
   inner=$(call_recommender "$messages_json" 1 "$exclude_json")
   if [ -z "$inner" ]; then return 0; fi
+
+  # ─── Routine-watchdog catch-up (N1 surface B): once per session ───────
+  # If a scheduled routine missed its run, surface it gently, at most once per
+  # Claude session, then return. Takes this one prompt's ambient slot; the
+  # recommendation flows normally on the next prompt.
+  local ra_say ra_shown
+  ra_say=$(jq -r '.routine_alert.say // empty' <<< "$inner" 2>/dev/null)
+  if [ -n "$ra_say" ] && [ -n "$CLAUDE_SID" ]; then
+    ra_shown=$(jq -r '.routine_alert_session // empty' "$STATE_FILE" 2>/dev/null)
+    if [ "$ra_shown" != "$CLAUDE_SID" ]; then
+      local tmp_ra="$STATE_FILE.tmp.$$"
+      jq --arg sid "$CLAUDE_SID" '.routine_alert_session = $sid' "$STATE_FILE" > "$tmp_ra" 2>/dev/null && mv "$tmp_ra" "$STATE_FILE"
+      hook_log "routine_alert" "fired" ""
+      emit_additional_context "$(format_routine_alert "$inner")" "implexa: a scheduled routine did not run"
+      return 0
+    fi
+  fi
 
   local matches_count suppress_hint nudge_say nudge_kind
   matches_count=$(jq -r '.matches | length // 0' <<< "$inner" 2>/dev/null)

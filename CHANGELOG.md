@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.22.0] - 2026-06-03
+
+Routine watchdog catch-up (N1 surface B). When a scheduled routine does not run
+on schedule, the ambient hook now surfaces a gentle one-line catch-up, at most
+once per session, so a silent miss (commonly a local routine that did not fire
+while the machine slept) does not go unnoticed.
+
+### Added
+
+- **In-session routine catch-up.** The recommend hook reads the backend's
+  routine_alert (attached to recommend_skills_for_context when the caller has
+  overdue routines) and surfaces it as additionalContext once per Claude
+  session, with the remote-routine upsell. The third notify surface alongside
+  the daily digest email and the dashboard overdue badge.
+
 ## [0.17.0] - 2026-05-31
 
 Verified-module trust-card surfaces ambiently. When a build prompt matches a
