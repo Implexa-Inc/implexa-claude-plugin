@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.25.0] - 2026-06-03
+
+Edit a workflow by just saying it. New /implexa:edit-workflow skill: "update this
+workflow to also look at Google Search Console and edit existing pages" resolves
+the target, composes the revised step chain, and calls revise_workflow, which
+binds the new steps and either revises the user's own workflow in place or forks
+a shared workflow into their copy and re-points their schedules. The next
+scheduled run uses the change, no re-scheduling, no prompt edit.
+
+### Added
+
+- **edit-workflow skill (natural-language workflow editing).** Routes "edit/update
+  this workflow to do X" to the new backend revise_workflow tool (fork-on-edit +
+  rebind via the verify gate + outcome prior + schedule re-point).
+
 ## [0.24.0] - 2026-06-03
 
 The /implexa:schedule skill now captures a postRunAction (the publish target) at
