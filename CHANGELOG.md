@@ -12,6 +12,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.23.0] - 2026-06-03
+
+Post-run action (S1): scheduling can stay a thin shim. The run-scheduled wrapper
+now executes a structured post_run_action stored on the schedule, so the routine
+prompt is a stable `/run-scheduled <id>` and job logic lives in the workflow, not
+in hand-edited prompt prose. Improving a workflow never requires touching the
+routine again.
+
+### Added
+
+- **run-scheduled Step 2.6: post-run publish action.** When the payload carries
+  a `post_run_action` (v1 type `publish-content`), the wrapper writes the
+  workflow deliverable to the configured artifact path and runs the repo's gated
+  publisher (`node <repo>/<script> <artifact> [--edit --path <p>] --merge`),
+  choosing the new-article vs edit branch from the workflow's chosen action.
+  Structured config, not raw shell. Skips gracefully when the repo/script is not
+  on the machine.
+
 ## [0.22.0] - 2026-06-03
 
 Routine watchdog catch-up (N1 surface B). When a scheduled routine does not run

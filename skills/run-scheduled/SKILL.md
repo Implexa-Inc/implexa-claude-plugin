@@ -110,6 +110,32 @@ You will pass this into the next step.
 
 **If `mcp__plugin_engineering_slack__send_message` is not available** (the Slack plugin isn't installed in this Claude Code session), build a `pluginDelivery` of `{ delivered: false, error: "Slack plugin not available in this session" }` and continue to Step 3. The run is still persisted; the user will see the failure receipt in /runs and can re-deliver or fix the plugin.
 
+## Step 2.6: Post-run action (only when the payload has `post_run_action`)
+
+**Skip this step entirely if `post_run_action` is null/absent.** It exists so the routine prompt can stay a thin `/run-scheduled <id>` shim: any side-effecting publish step lives as structured config on the schedule, not as hand-written prose in the cron prompt. When the workflow improves, nothing here changes.
+
+The only v1 shape is `{ "type": "publish-content", "repo": "<abs path>", "script": "scripts/publish-draft-post.mjs", "artifact_path": "/tmp/implexa-seo.md" }` (script + artifact_path may be omitted; use those defaults).
+
+Do this:
+
+1. **Decide the publish branch from the workflow's chosen action** (the workflow output from Step 2A tells you which it picked):
+   - **new article** → no `--edit`. The deliverable is a full new post (frontmatter + body).
+   - **title/meta rewrite** or **page expansion** → `--edit --path <repo-relative target file>`. The deliverable is the FULL edited existing file; the target path is the existing page the workflow chose (e.g. `content/blog/<slug>.md` or `content/resources/<slug>.md`).
+2. **Write the deliverable** to `post_run_action.artifact_path` (default `/tmp/implexa-seo.md`), exactly as the publisher expects (valid frontmatter, no em-dashes, the workflow's full output).
+3. **Run the gated publisher** from the repo, via Bash, building the command from the structured fields (never run an arbitrary stored string):
+   - new article: `node <repo>/<script> <artifact_path> --merge`
+   - edit: `node <repo>/<script> <artifact_path> --edit --path <target> --merge`
+   where `<script>` defaults to `scripts/publish-draft-post.mjs`.
+4. **Read the exit code** and capture a one-line publish result to fold into the run output:
+   - `0` → opened + merged (live). 
+   - `1` → a content gate failed: READ the error, fix the deliverable, re-run, max 2 retries.
+   - `2` → git/gh failure (note it).
+   - `3` → PR opened but NOT merged (a check failed or did not finish); leave it for a human and note the PR URL.
+   Never merge by hand past a red check.
+5. Append the publish result (action taken + exit outcome + PR URL) to the markdown you pass to Step 3, so `/runs` records what shipped.
+
+If `post_run_action.repo` does not exist on this machine, or `node`/the script is unavailable in this background context, skip the publish, note `"publish skipped: <reason>"` in the output, and continue to Step 3 (the run is still recorded; the user can publish by hand). Never fabricate a publish result.
+
 ## Step 3 — Persist + deliver
 
 Call **`record_scheduled_run`** with:
