@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.24.0] - 2026-06-03
+
+The /implexa:schedule skill now captures a postRunAction (the publish target) at
+schedule time, so a one-line "schedule the seo workflow weekly and publish to my
+implexa-website repo" stores the config on the schedule and the routine prompt
+stays a thin /run-scheduled shim. Pairs with the S1 backend + run-scheduled
+Step 2.6.
+
+### Added
+
+- **schedule skill captures postRunAction.** When the user asks to publish/apply
+  a workflow's output to a repo, the skill resolves the repo path and passes
+  postRunAction { type: "publish-content", repo, ... } to schedule_skill. Omitted
+  otherwise. Improving the workflow later never requires touching the prompt.
+
 ## [0.23.0] - 2026-06-03
 
 Post-run action (S1): scheduling can stay a thin shim. The run-scheduled wrapper

@@ -48,6 +48,19 @@ Extract three things from the user's free-form input:
 
   If the user gave only the skill slug + schedule without mentioning Slack, **do not ask** for Slack details. Default to dashboard. They can add Slack later by re-running /implexa:schedule with the same args + a destination.
 
+- **`postRunAction`** (optional): a side-effecting step the run-scheduled wrapper runs AFTER the workflow produces its deliverable, stored on the schedule so the routine prompt stays a thin `/run-scheduled <id>` shim. **Capture this when the user wants the run's output PUBLISHED or applied to a repo**, e.g. "schedule the seo workflow weekly and publish drafts to my implexa-website repo". v1 shape:
+
+  ```jsonc
+  {
+    "type": "publish-content",
+    "repo": "<absolute path to the repo on this machine, e.g. /Users/you/.../implexa-website>",
+    "script": "scripts/publish-draft-post.mjs",   // optional, this is the default
+    "artifact_path": "/tmp/implexa-seo.md"          // optional, this is the default
+  }
+  ```
+
+  Resolve `repo` to the absolute path of the user's repo (infer from the workspace, or ask once if ambiguous). **Omit `postRunAction` entirely** if the user did not ask to publish/apply output anywhere. Capture it ONCE here; improving the workflow later never requires changing the routine prompt.
+
 ## Step 2 — Call `schedule_skill`
 
 Call `schedule_skill` with the parsed args:
@@ -59,6 +72,8 @@ Call `schedule_skill` with the parsed args:
   "destination": { "type": "dashboard" }
   // OR { "type": "slack-plugin",  "target": "#standup" }
   // OR { "type": "slack-webhook", "target": "https://hooks.slack.com/services/T.../B.../XXX" }
+  // optional, ONLY when the user wants output published to a repo:
+  // "postRunAction": { "type": "publish-content", "repo": "/Users/you/.../implexa-website" }
 }
 ```
 
