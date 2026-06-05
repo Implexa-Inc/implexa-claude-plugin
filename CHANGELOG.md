@@ -12,6 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.27.0] - 2026-06-04
+
+The Offer: from prompt to a delivered outcome. When implexa has a whole workflow
+for what you are doing, the in-session card now leads with the outcome you get,
+shows real proof (how many people run it on autopilot), and offers run-now and
+schedule-it as one move: run it now to see it work, then it just keeps happening
+and emails you the result.
+
+### Changed
+
+- **Workflow offer rendering.** The recommend hook's workflow card now reads the
+  new proof line and the ready-to-call schedule_call from the recommender, so it
+  pitches the whole job as prompt -> outcome, surfaces social proof, and hands the
+  agent both apply_workflow and schedule_skill with real args (autopilot offered
+  in the same breath as the run). Falls back to the old schedule hint for older
+  backends. The richer recommendation fields ship via the backend deploy.
+
 ## [0.26.0] - 2026-06-03
 
 Workflows surface in-session. When implexa has a whole WORKFLOW for what you are
