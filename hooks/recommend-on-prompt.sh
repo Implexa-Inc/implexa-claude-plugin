@@ -63,6 +63,11 @@ set -e
 API_KEY="${IMPLEXA_API_KEY:-}"
 API_URL="${IMPLEXA_API_URL:-https://core.implexa.ai}"
 
+# Plugin version. Sent on every backend call (X-Implexa-Plugin-Version) so the
+# dashboard Updates surface can detect an out-of-date install. Keep this in
+# lockstep with .claude-plugin/plugin.json "version" on every release.
+PLUGIN_VERSION="0.27.1"
+
 STATE_DIR="$HOME/.claude/plugins/implexa"
 STATE_FILE="$STATE_DIR/recommender-state.json"
 BUFFER_FILE="$STATE_DIR/recent-recommendations.json"
@@ -281,6 +286,7 @@ call_recommender() {
     -H "Authorization: Bearer ${API_KEY}" \
     -H "Content-Type: application/json" \
     -H "Accept: application/json, text/event-stream" \
+    -H "X-Implexa-Plugin-Version: ${PLUGIN_VERSION}" \
     -d "$body" 2>/dev/null || echo "")
 
   [ -z "$http_out" ] && { hook_log "http" "no_response" ""; return 0; }
@@ -585,6 +591,7 @@ maybe_record_signature() {
     -H "Authorization: Bearer ${API_KEY}" \
     -H "Content-Type: application/json" \
     -H "Accept: application/json, text/event-stream" \
+    -H "X-Implexa-Plugin-Version: ${PLUGIN_VERSION}" \
     -d "$body" >/dev/null 2>&1 &
 
   bump_signature_timestamp

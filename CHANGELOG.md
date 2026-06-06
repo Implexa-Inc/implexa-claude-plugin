@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.27.1] - 2026-06-05
+
+Version reporting, so the dashboard can tell you when you are behind.
+
+### Added
+
+- **Plugin version reporting.** The recommend hook now sends its version on its
+  backend calls (the X-Implexa-Plugin-Version header). The dashboard Updates
+  page reads it to show a precise "you are on vX, latest is vY, update" prompt
+  instead of a generic how-to. No new permissions, no extra calls; it rides the
+  requests the hook already makes.
+
 ## [0.27.0] - 2026-06-04
 
 The Offer: from prompt to a delivered outcome. When implexa has a whole workflow
