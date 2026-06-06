@@ -66,7 +66,30 @@ API_URL="${IMPLEXA_API_URL:-https://core.implexa.ai}"
 # Plugin version. Sent on every backend call (X-Implexa-Plugin-Version) so the
 # dashboard Updates surface can detect an out-of-date install. Keep this in
 # lockstep with .claude-plugin/plugin.json "version" on every release.
-PLUGIN_VERSION="0.27.1"
+PLUGIN_VERSION="0.27.2"
+
+# Per-surface installed versions. This one shared hook fires from BOTH Claude
+# and Codex, so on each call we read every surface's local marketplace clone
+# from disk and report them together (X-Implexa-Surface-Versions). That lets the
+# dashboard show a precise "your Codex plugin is out of date" banner. Best
+# effort: a missing clone or jq error just omits that surface. Never fails the
+# hook (guarded against set -e).
+_implexa_clone_version() {
+  local f="$1"
+  [ -r "$f" ] || return 0
+  jq -r '.version // empty' "$f" 2>/dev/null || true
+}
+_implexa_surface_versions() {
+  local parts="" v
+  v="$(_implexa_clone_version "$HOME/.claude/plugins/marketplaces/implexa/.claude-plugin/plugin.json" || true)"
+  [ -n "$v" ] && parts="claude=$v"
+  v="$(_implexa_clone_version "$HOME/.codex/marketplaces/implexa/.codex-plugin/plugin.json" || true)"
+  [ -n "$v" ] && parts="${parts:+$parts;}codex=$v"
+  v="$(_implexa_clone_version "$HOME/.cursor/plugins/marketplaces/implexa/.claude-plugin/plugin.json" || true)"
+  [ -n "$v" ] && parts="${parts:+$parts;}cursor=$v"
+  printf '%s' "$parts"
+}
+SURFACE_VERSIONS="$(_implexa_surface_versions || true)"
 
 STATE_DIR="$HOME/.claude/plugins/implexa"
 STATE_FILE="$STATE_DIR/recommender-state.json"
@@ -287,6 +310,7 @@ call_recommender() {
     -H "Content-Type: application/json" \
     -H "Accept: application/json, text/event-stream" \
     -H "X-Implexa-Plugin-Version: ${PLUGIN_VERSION}" \
+    -H "X-Implexa-Surface-Versions: ${SURFACE_VERSIONS}" \
     -d "$body" 2>/dev/null || echo "")
 
   [ -z "$http_out" ] && { hook_log "http" "no_response" ""; return 0; }
@@ -592,6 +616,7 @@ maybe_record_signature() {
     -H "Content-Type: application/json" \
     -H "Accept: application/json, text/event-stream" \
     -H "X-Implexa-Plugin-Version: ${PLUGIN_VERSION}" \
+    -H "X-Implexa-Surface-Versions: ${SURFACE_VERSIONS}" \
     -d "$body" >/dev/null 2>&1 &
 
   bump_signature_timestamp

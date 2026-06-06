@@ -12,6 +12,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.27.2] - 2026-06-06
+
+Per-surface version reporting, so the dashboard can flag exactly which
+surface is behind.
+
+### Added
+
+- **Per-surface plugin versions.** The recommend hook fires from both Claude
+  and Codex, so on each call it now reads every surface's local marketplace
+  clone from disk and reports them together (X-Implexa-Surface-Versions). The
+  dashboard uses this to show a precise banner like "your Codex plugin is out
+  of date" instead of a single shared version. Best effort and silent: a
+  missing clone just omits that surface.
+
 ## [0.27.1] - 2026-06-05
 
 Version reporting, so the dashboard can tell you when you are behind.
