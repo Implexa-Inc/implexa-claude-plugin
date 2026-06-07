@@ -1,10 +1,25 @@
 ---
-description: 'Generate a share link for any of your skills (or system Playbooks) — recipients can preview the skill and install in 1 click after login. Two modes — TEAM-only (gated to same email domain — only @yourdomain.com can install, perfect for "send this to my team") or PUBLIC (anyone can install, perfect for Slack/Twitter/LinkedIn distribution). Use when the user says "share this skill", "share my skill", "share my last skill", "share with my team", "share my skill with a teammate", "share my skill with a colleague", "share with a teammate", "send this to my team", "send to my team", "DM this skill to someone", "share on Slack", "post on LinkedIn", "post on Twitter", "post on X", "make a link for this", "create a share link", "share with someone", or any other phrasing meaning "give me a link to send this skill to another person." The viral primitive of the Skill Graph — turns a saved skill into a one-click installable artifact across orgs.'
+description: 'Share a SKILL or a WORKFLOW you saved. For a skill: generate a team-gated or public install link (implexa.ai/s/<token>). For a workflow: publish it to the community catalog with PII stripped, earning you karma. ONE share verb for both. Use when the user says "share this", "share this skill", "share this workflow", "share my skill", "share my workflow", "share my last skill", "share with my team", "send this to my team", "DM this to someone", "share on Slack", "post on LinkedIn", "post on Twitter", "post on X", "make a link for this", "create a share link", "share with the community", "publish my workflow", "share with someone", or any phrasing meaning "let other people use this." The viral primitive: turns a saved skill or workflow into something others can install or run.'
 ---
 
-# Share a skill — generate a preview + install link
+# Share a skill or a workflow
 
-The user wants to share a skill with someone — either their team (domain-gated) or the public (anyone). Generate a `implexa.ai/s/<token>` link they can paste anywhere.
+ONE share verb, two artifact kinds. First figure out which, then route.
+
+## Step 0: Skill or workflow?
+
+What is the user pointing at?
+
+- A **skill** (a single SKILL.md procedure) → the **Skill path** below: a team-gated or public install link (`implexa.ai/s/<token>`).
+- A **workflow** (a whole-job chain they captured or generated, e.g. from `/implexa:my-skills workflows` or one they just saved) → the **Workflow path**: publish to the community catalog with PII stripped, earning karma.
+
+Decide from what was just discussed / created. If genuinely unsure, ask once: *"Is this a skill or a whole-job workflow you're sharing?"* Then route. The Workflow path is at the bottom; the Skill path is immediately below.
+
+---
+
+## Skill path: generate a preview + install link
+
+The user wants to share a SKILL with someone, either their team (domain-gated) or the public (anyone). Generate a `implexa.ai/s/<token>` link they can paste anywhere.
 
 ## Step 1 — Resolve the skill to share
 
@@ -58,7 +73,7 @@ For **team mode**:
    Only @{domain} email addresses can install. Anyone else hitting this link
    will see the preview but be blocked at the install step.
 
-   Track views + installs in your Skill Graph dashboard.
+   Track views + installs in your Implexa dashboard.
 ```
 
 For **public mode**:
@@ -69,7 +84,7 @@ For **public mode**:
    Anyone with this URL can preview and install. PII has been removed from
    the public payload — your workflow + sample data become visible to other orgs.
 
-   Track views + installs in your Skill Graph dashboard.
+   Track views + installs in your Implexa dashboard.
 ```
 
 ## Step 6 — Suggest distribution
@@ -83,11 +98,48 @@ For **public mode**:
 > 2. *Twitter / X — short framing ('I built a skill that does X — try it')*
 > 3. *Public community Slacks (Pavilion, RevOps Co-op, etc.)"*
 
+---
+
+## Workflow path: publish to the community catalog (+ karma)
+
+The user is sharing a WHOLE-JOB WORKFLOW (one they captured or generated). Workflows don't use install links; they publish to the public catalog at `implexa.ai/workflows/<slug>`, where anyone can run them. Sharing is opt-in, strips PII, and earns the author karma.
+
+### Step W1: Confirm + genericize (no PII)
+
+Only the author can share their own workflow. Before publishing, make it GENERIC, a reusable template, not a record of one private run:
+- Rewrite the **name** and **description** to remove any personal specifics (your company, handles, niche, client names, internal codenames). e.g. "My Acme daily reel" → "Daily IG reel: produce and render".
+- If a STEP label names a personal specific, fix it first via `revise_workflow` before sharing.
+
+Confirm in one line: *"I'll publish this to the community as '<generic name>', with your personal details stripped. You earn karma. Share it?"* Only proceed on an explicit yes.
+
+### Step W2: Call share_workflow
+
+Call **`share_workflow`** with:
+- `slug` + `source` (the workflow's source, `community` for captured, `generated` for generated), OR `workflow_id`
+- `name`: the genericized name
+- `description`: the genericized description
+
+It flips the workflow public, applies the clean copy, marks PII scrubbed, and credits karma. (`unshare: true` reverses it.)
+
+### Step W3: Render the result
+
+```
+🌍 Published to the community:
+   https://implexa.ai/workflows/<slug>
+
+   PII stripped. Anyone can now run this whole job on their own agent.
+   +50 karma. See your total at app.implexa.ai/settings/karma.
+```
+
+Then suggest distribution (LinkedIn / X / a community Slack), same as a public skill share.
+
+**Never publish a workflow without an explicit yes.** Private-by-default is the foundation principle; sharing is the user's choice, every time.
+
 ## What's next?
 
 - `Show me the share link's view + install stats`
-- `Share another skill from my library`
-- `Revoke this share link`
+- `Share another skill or workflow from my library`
+- `Revoke this share link` / `Unshare that workflow`
 
 ## Notes for the model
 

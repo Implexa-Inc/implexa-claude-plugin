@@ -12,6 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.27.6] - 2026-06-06
+
+Unify sharing, hands-free scheduled workflows, and workflow-first vocabulary.
+
+### Changed
+
+- **`/implexa:share-this` shares skills OR workflows.** One verb: a skill gets a
+  team/public install link; a workflow publishes to the community catalog (PII
+  stripped, +karma). Was two disjoint paths.
+- **Schedule-time config.** Scheduling a workflow now resolves its config
+  interview first (get_workflow_setup -> save_workflow_setup), so the first
+  unattended run is hands-free instead of stalling on a question. Applied in
+  /implexa:schedule and the inline schedule offers in run + record.
+- **Help + command surface now workflow-first.** `/implexa:run` leads with
+  workflows, `/implexa:record` captures skill OR workflow, `/implexa:my-skills`
+  has a workflows lens, and the killer-flow copy is prompt-or-capture a workflow.
+
 ## [0.27.5] - 2026-06-06
 
 Browse the workflows you've saved.

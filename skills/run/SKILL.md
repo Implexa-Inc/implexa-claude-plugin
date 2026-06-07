@@ -77,7 +77,7 @@ If `recommend_skills_for_context` returned a `workflow_candidate`, the user's in
    - proof when present: `run_count` / `scheduled_count` → "N run this on autopilot" / "run N×"
    - the candidate's `pitch` line.
 2. On the user's go, run it with **`apply_workflow`** using `workflow_candidate.apply_call.args`.
-3. In the SAME breath, if `workflow_candidate.schedule_call` is present, offer the autopilot: *"run it now to see it work, then it keeps happening and emails you the result"* → `schedule_skill` with `schedule_call.args`, then `mcp__scheduled-tasks__create_scheduled_task` with the returned prompt/cron/tz.
+3. In the SAME breath, if `workflow_candidate.schedule_call` is present, offer the autopilot: *"run it now to see it work, then it keeps happening and emails you the result"*. Before scheduling, if the workflow has unanswered config, resolve it (`get_workflow_setup` → ask → `save_workflow_setup`) so the unattended run is hands-free → then `schedule_skill` with `schedule_call.args`, then `mcp__scheduled-tasks__create_scheduled_task` with the returned prompt/cron/tz.
 4. The merged skill list (Step 3) sits BELOW as the **ingredients** — individual skills to run à la carte if they don't want the whole job.
 
 This is also what makes a user's OWN captured/generated workflows resurface: the recommender now matches the caller's private workflows (scoped to them), so "run my X" or a matching intent re-offers the whole job they saved — ready to re-run or schedule, not rebuilt by hand. If there is NO `workflow_candidate`, skip this step.

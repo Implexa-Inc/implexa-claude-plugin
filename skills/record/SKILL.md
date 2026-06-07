@@ -73,7 +73,7 @@ Call **`capture_workflow`** with `{ intent, vertical, name, slug, steps, descrip
 
 ### Step W5 — Offer to schedule + offer to share
 
-- **Schedule** (offer always): *"want this to run on its own? i can put it on a schedule."* If yes, call `schedule_skill({ skillSlug: "<slug>", source: "community", scheduleNl: "<their pick>" })`, then `mcp__scheduled-tasks__create_scheduled_task` with the returned `claudeScheduledTaskPrompt` / `cronExpression` / `timezone` (same as Step 3f.5 below).
+- **Schedule** (offer always): *"want this to run on its own? i can put it on a schedule."* If yes: **first**, if the workflow declared any config, resolve it now via `get_workflow_setup` → ask the questions → `save_workflow_setup`, so the unattended run is hands-free. Then call `schedule_skill({ skillSlug: "<slug>", source: "community", scheduleNl: "<their pick>" })`, then `mcp__scheduled-tasks__create_scheduled_task` with the returned `claudeScheduledTaskPrompt` / `cronExpression` / `timezone` (same as Step 3f.5 below).
 - **Share** (opt-in ONLY, never pushy): *"want to share this with the community? i'll strip any personal details and make it generic, and you earn karma."* If yes → genericize the name/description so there's no PII, then call `share_workflow({ slug: "<slug>", source: "community", name, description })`. Never share without an explicit yes.
 
 That's the whole workflow path. The skill branches (A/B/C) are below for single-procedure captures.

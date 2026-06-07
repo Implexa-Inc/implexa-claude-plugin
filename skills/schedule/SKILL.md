@@ -61,6 +61,17 @@ Extract three things from the user's free-form input:
 
   Resolve `repo` to the absolute path of the user's repo (infer from the workspace, or ask once if ambiguous). **Omit `postRunAction` entirely** if the user did not ask to publish/apply output anywhere. Capture it ONCE here; improving the workflow later never requires changing the routine prompt.
 
+## Step 1.5: Resolve workflow config BEFORE scheduling (workflows only)
+
+If you're scheduling a **workflow** (you'll pass `source` to `schedule_skill`), its first run is **unattended**: no one is there to answer setup questions when the schedule fires at 9am tomorrow. So resolve the config NOW, at schedule time, so day-1 runs hands-free. This is the difference between a schedule that just works and one that stalls its first run on a question no one can answer.
+
+1. Call **`get_workflow_setup`** with the workflow's `slug` + `source` (or `workflow_id`).
+2. If `complete` is true → the user already answered; reuse verbatim, skip to Step 2.
+3. If not complete → ask the returned `questions` ONE at a time via **`AskUserQuestion`** (offer the `options` for `kind:"choice"`; let them type their own). Then call **`save_workflow_setup`** with `{ slug, source, config }` (the flat answer map).
+4. Only proceed once setup is `complete`, unless the user explicitly says "schedule it anyway", in which case warn that the first run may stall on the missing config.
+
+Skip this step entirely for plain SKILL schedules (no `source`); skills don't carry a config interview.
+
 ## Step 2 — Call `schedule_skill`
 
 Call `schedule_skill` with the parsed args:

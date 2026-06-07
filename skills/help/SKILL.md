@@ -48,12 +48,12 @@ Then below the balance, render this catalogue verbatim:
 
 | command | what it does |
 |---|---|
-| `/implexa:suggest [for X]` | Find skills — active search if you give a query, passive buffer pull if you don't |
-| `/implexa:run <skill or prompt>` | Find + apply the best-fit skill from your library OR the cross-vendor graph |
-| `/implexa:record` | Capture a workflow as a skill — new from demo, post-hoc save, or update existing via re-record |
-| `/implexa:my-skills [scope]` | Browse libraries — `personal` (default), `team`, `org`, `public` |
-| `/implexa:schedule <skill> <cadence>` | Schedule any skill to run on a recurrence — dashboard or Slack delivery |
-| `/implexa:share-this` | Generate a share link — team-gated (your domain) or public (anywhere) |
+| `/implexa:suggest [for X]` | Find skills + workflows: active search if you give a query, passive buffer pull if you don't |
+| `/implexa:run <what you want>` | Find + run the best fit: leads with a whole-job **workflow** when one matches, else the best skill from your library or the cross-vendor graph |
+| `/implexa:record` | Capture your work as a reusable **skill** OR a multi-step **workflow** (schedulable, shareable) |
+| `/implexa:my-skills [scope]` | Browse your library: `personal` (default), `team`, `public`, or `workflows` (the whole jobs you saved) |
+| `/implexa:schedule <thing> <cadence>` | Put a skill or workflow on autopilot: dashboard, email, or Slack delivery |
+| `/implexa:share-this` | Share a **skill** (team/public install link) or a **workflow** (publish to the community for karma) |
 | `/implexa:help` | This page |
 
 ### 🗣️ Or just ask in natural language
@@ -67,7 +67,12 @@ The 7 commands cover the high-traffic verbs. For anything else, just ask — Imp
 
 ### 🎬 The killer flow
 
-`/implexa:record` — demonstrate any workflow once. Implexa captures every prompt + tool call + response, runs a Haiku-powered interview to lock the intent, and emits a **6-component SKILL.md** (intent + inputs + procedure + decision points + output contract + outcome signal) that runs in Claude Code, Cursor, Codex, Gemini CLI, and 30+ more agents. Share with your team, fork from a public library, schedule it daily, track outcome attribution.
+Two ways to get a reusable, schedulable **workflow**, a whole job run end to end, not a single skill:
+
+- **Prompt it**: describe a recurring job and Implexa builds the workflow from verified skills (`/implexa:run`, or just ask).
+- **Capture it**: do the job once and say "save this as a workflow"; Implexa reconstructs the chain (`/implexa:record`).
+
+Either way you get a workflow you can **run on your own agent**, put on a **schedule** (it delivers to your inbox on its own), browse anytime (`/implexa:my-skills workflows`), and **share** with the community for karma, and every run hardens it for the next person. Single procedures still capture as a 6-component **skill** that runs in Claude Code, Cursor, Codex, Gemini CLI, and 30+ agents.
 
 ### 📦 What's free vs. what costs credits
 
