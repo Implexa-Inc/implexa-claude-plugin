@@ -77,7 +77,9 @@ If `recommend_skills_for_context` returned a `workflow_candidate`, the user's in
    - proof when present: `run_count` / `scheduled_count` → "N run this on autopilot" / "run N×"
    - the candidate's `pitch` line.
 2. On the user's go, run it with **`apply_workflow`** using `workflow_candidate.apply_call.args`.
-3. In the SAME breath, if `workflow_candidate.schedule_call` is present, offer the autopilot: *"run it now to see it work, then it keeps happening and emails you the result"*. Before scheduling, if the workflow has unanswered config, resolve it (`get_workflow_setup` → ask → `save_workflow_setup`) so the unattended run is hands-free → then `schedule_skill` with `schedule_call.args`, then `mcp__scheduled-tasks__create_scheduled_task` with the returned prompt/cron/tz.
+3. In the SAME breath, offer the autopilot, matched to the workflow's trigger:
+   - **`schedule_call` present (cron workflow)** → *"run it now to see it work, then it keeps happening and emails you the result"*. Resolve any unanswered config first (`get_workflow_setup` → ask → `save_workflow_setup`), then `schedule_skill` with `schedule_call.args`, then `mcp__scheduled-tasks__create_scheduled_task` with the returned prompt/cron/tz.
+   - **`loop_call` present (watch/until workflow)** → this is a LIVE workflow, fired by a Claude `/loop` session, not a clock. Offer: *"run it now, then start it live"*. Call `schedule_skill` with `loop_call.args`; it returns a `loopInvocation` string — give it to the user to paste (e.g. `/loop Watch for: …; when it happens, run /implexa:run-scheduled <id>`). For `watch` it reacts to the event; for `until` it re-runs to convergence. It runs while the session is open.
 4. The merged skill list (Step 3) sits BELOW as the **ingredients** — individual skills to run à la carte if they don't want the whole job.
 
 This is also what makes a user's OWN captured/generated workflows resurface: the recommender now matches the caller's private workflows (scoped to them), so "run my X" or a matching intent re-offers the whole job they saved — ready to re-run or schedule, not rebuilt by hand. If there is NO `workflow_candidate`, skip this step.

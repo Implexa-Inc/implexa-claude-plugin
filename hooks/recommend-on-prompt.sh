@@ -66,7 +66,7 @@ API_URL="${IMPLEXA_API_URL:-https://core.implexa.ai}"
 # Plugin version. Sent on every backend call (X-Implexa-Plugin-Version) so the
 # dashboard Updates surface can detect an out-of-date install. Keep this in
 # lockstep with .claude-plugin/plugin.json "version" on every release.
-PLUGIN_VERSION="0.27.6"
+PLUGIN_VERSION="0.27.7"
 
 # Per-surface installed versions. This one shared hook fires from BOTH Claude
 # and Codex, so on each call we read every surface's local marketplace clone

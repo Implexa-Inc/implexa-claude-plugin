@@ -12,6 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.27.7] - 2026-06-06
+
+Loop-powered workflows: reactive (watch) and converging (until) triggers.
+
+### Added
+
+- **Watch / until workflows, powered by Claude /loop.** A workflow can now fire
+  REACTIVELY ("when my competitor changes pricing, run it") or CONVERGE ("keep
+  refining until the critique passes") instead of only on a clock. `/implexa:run`
+  offers a loop_call for a matching watch/until workflow, and `/implexa:schedule`
+  has a watch/until branch that returns a /loop invocation the user pastes to
+  start it live. Each iteration logs to /runs and feeds the binding flywheel.
+
 ## [0.27.6] - 2026-06-06
 
 Unify sharing, hands-free scheduled workflows, and workflow-first vocabulary.

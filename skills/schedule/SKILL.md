@@ -72,6 +72,23 @@ If you're scheduling a **workflow** (you'll pass `source` to `schedule_skill`), 
 
 Skip this step entirely for plain SKILL schedules (no `source`); skills don't carry a config interview.
 
+## Step 1.6: Watch / until triggers (loop-powered, workflows only)
+
+If the user wants the workflow to fire **reactively** ("**when** my competitor changes pricing, run it", "run it **when** CI goes green") or to **converge** ("keep running **until** the draft passes the critique", "**until** I have 10 leads") rather than on a clock, this is a `/loop`-powered routine, not cron. It applies to a **workflow** (pass `source`), not a library skill.
+
+1. Call **`schedule_skill`** with: `skillSlug` (the workflow slug), `source`, `trigger: "watch"` (event-driven) or `"until"` (converging), `watchCondition` (the event for watch, or the success condition for until, in one line), `destination` (e.g. `{ "type": "email" }`). NO `scheduleNl` — there's no clock.
+2. The tool returns a **`loopInvocation`** string. Give it to the user to paste verbatim:
+
+   ```
+   ▶ Start it live, paste this in your agent:
+     <loopInvocation>
+   ```
+
+   It runs inside a Claude `/loop` session: `watch` arms a Monitor and runs the workflow when the event fires; `until` re-runs to convergence (bounded by a max-iterations guard). Each iteration logs to app.implexa.ai/runs.
+3. **Skip Steps 2 and 3** (no cron, no `create_scheduled_task`). Be honest: it runs **while the session is open**; for a durable always-on cadence, use a cron schedule instead.
+
+For an ordinary clock schedule, continue to Step 2.
+
 ## Step 2 — Call `schedule_skill`
 
 Call `schedule_skill` with the parsed args:
