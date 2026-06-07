@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.27.3] - 2026-06-06
+
+Capture your work as a WORKFLOW, not just a skill.
+
+### Changed
+
+- **`/implexa:record` now captures multi-step workflows.** A new Phase 0
+  decides skill vs workflow, and a new Branch W reconstructs a multi-step job
+  into an ordered, schedulable workflow via `capture_workflow` (private to you,
+  ownable, shareable for karma) instead of flattening it into a single skill.
+  Closes the asymmetry where we could generate workflows but only capture skills.
+
 ## [0.27.2] - 2026-06-06
 
 Per-surface version reporting, so the dashboard can flag exactly which

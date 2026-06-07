@@ -1,12 +1,30 @@
 ---
-description: 'Capture a workflow as a structured skill. Three entry intents in one flow: (A) NEW skill via live demonstration, (B) POST-HOC save of work just completed (no demo needed), or (C) UPDATE an existing skill by re-recording. Use when the user says "record a skill", "record this", "watch me do this once", "capture this as a skill", "save this", "save this as a skill", "make that a workflow", "save what we just did", "improve my X skill", "update my X skill by re-recording", "add a step to my Y skill via demo", or invokes /implexa:record. THE killer feature of the Skill Graph — one demonstration becomes a reusable, conditional, measurable skill via a post-hoc structured interview. Absorbs the old /implexa:save-this (now Branch B) and /implexa:update-skill (now Branch C).'
+description: 'Capture your work as a reusable SKILL or a multi-step WORKFLOW. A skill is one cohesive procedure; a workflow is a chain of several skills/tools stitched toward one outcome, saved as an ordered, schedulable artifact. Skill paths: (A) NEW skill via live demonstration, (B) POST-HOC save of work just completed, (C) UPDATE an existing skill by re-recording. Workflow path: (W) save a multi-step job just completed as a runnable workflow via capture_workflow. Use when the user says "record a skill", "record this", "watch me do this once", "capture this as a skill", "save this", "save this as a skill", "save this as a workflow", "make that a workflow", "save the whole flow", "turn what we just did into a workflow", "save what we just did", "improve my X skill", "update my X skill by re-recording", or invokes /implexa:record. THE killer feature of the Skill Graph — one demonstration becomes a reusable, conditional, measurable skill OR a schedulable whole-job workflow. Absorbs the old /implexa:save-this (now Branch B) and /implexa:update-skill (now Branch C).'
 ---
 
-# Capture a workflow as a skill (3 intents in one flow)
+# Capture your work as a skill or a workflow
 
-The user wants to turn a workflow into a structured, reusable skill — properly built (intent + inputs + procedure + decision points + output contract + outcome signal), not just a saved prompt. Three intents trigger this flow; pick the right branch upfront.
+The user wants to turn the work into something reusable — properly structured, not a saved prompt. First decide WHAT KIND, then pick the branch.
 
-## Phase 0 — Which entry intent?
+## Phase 0a — Skill or workflow? (decide this FIRST)
+
+Implexa captures two kinds of reusable thing:
+
+- **Skill** — ONE cohesive procedure, a single job done one way ("draft my HN comments", "warm up a renewal"). Saved as a structured SKILL.md. Use branches A / B / C below.
+- **Workflow** — a MULTI-STEP CHAIN that stitches several distinct skills/tools toward one outcome ("research the topic → write the script → render the reel → draft the caption"). Saved as an ordered, **schedulable** artifact via `capture_workflow`. Use **Branch W**.
+
+Decide from what actually happened:
+- 3+ distinct producing steps (different skills/tools) chained toward one deliverable → **workflow** (Branch W).
+- One procedure, even with internal sub-steps → **skill** (A / B / C).
+- The user said "save this as a workflow" / "save the whole flow" and the session was multi-step → **workflow**.
+
+When genuinely ambiguous, ask once:
+
+> *"This was a few steps stitched together — save it as a **workflow** (a schedulable chain you can re-run end to end) or as a single **skill**?"*
+
+Workflow → **Branch W** (below). Skill → continue to Phase 0b.
+
+## Phase 0b — Which skill entry intent?
 
 Detect from the user's phrasing and pick one of three branches. Ask only when truly ambiguous.
 
@@ -21,6 +39,44 @@ Branches A and C share Phases 1-3 (start recording, observe, interview, finalize
 Ambiguous case (*"record a skill that adds a step to X"*) → ask:
 
 > *"Is this a fresh new skill (A), a save of what we just did (B), or a re-record into an existing one (C)?"*
+
+---
+
+## Branch W — Capture as a workflow (a multi-step chain)
+
+The session was a whole job stitched from several steps. Save the SHAPE as a runnable, schedulable workflow. **Shape-only**: the chain + the tool kinds + the decision logic — NEVER the user's actual company names, numbers, handles, or row data. A workflow is a reusable template, not a record of one private run.
+
+### Step W1 — Confirm the intent (one line, generic)
+
+Ask: *"In one sentence, what whole job does this do?"* Phrase it generically (a reusable template, not this one run): *"produce my daily IG reel end to end"*, *"build a competitor brief before a sales call"*.
+
+### Step W2 — Reconstruct the ordered steps from the session trace
+
+From your own memory of what you actually ran this session, list the steps in order. For each:
+
+- `order`: 1-based position.
+- `kind`: `skill` | `tool` | `decision`.
+- `ref`: for a **skill**, the `{ source, slug }` you applied (from the `apply_*` call that ran it); for a **tool**, `{ tool: "<mcp tool name>" }`; for a **decision**, `{ rule: "<the branch / approval logic>" }`.
+- `label`: one generic line of what the step does.
+
+Strip ALL specifics. Any step that touched a real client/customer must be a `decision` approval gate, not an unattended send. Don't pad — if the job was 4 real steps, save 4.
+
+### Step W3 — Name, slug, vertical
+
+- `name`: 2-5 words ("daily IG reel produce + render").
+- `slug`: lowercase-hyphen, unique (the tool rejects a collision — pick another if so).
+- `vertical`: the domain ("creator", "sales", "developer", "recruiter").
+
+### Step W4 — Call capture_workflow
+
+Call **`capture_workflow`** with `{ intent, vertical, name, slug, steps, description? }`. It saves with `source: "community"` — **private to the user** (owned by them), unproven until real runs harden it. Show the user the saved workflow URL + the step count.
+
+### Step W5 — Offer to schedule + offer to share
+
+- **Schedule** (offer always): *"want this to run on its own? i can put it on a schedule."* If yes, call `schedule_skill({ skillSlug: "<slug>", source: "community", scheduleNl: "<their pick>" })`, then `mcp__scheduled-tasks__create_scheduled_task` with the returned `claudeScheduledTaskPrompt` / `cronExpression` / `timezone` (same as Step 3f.5 below).
+- **Share** (opt-in ONLY, never pushy): *"want to share this with the community? i'll strip any personal details and make it generic, and you earn karma."* If yes → genericize the name/description so there's no PII, then call `share_workflow({ slug: "<slug>", source: "community", name, description })`. Never share without an explicit yes.
+
+That's the whole workflow path. The skill branches (A/B/C) are below for single-procedure captures.
 
 ---
 
