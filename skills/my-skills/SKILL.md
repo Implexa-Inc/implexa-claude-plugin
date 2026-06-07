@@ -1,5 +1,5 @@
 ---
-description: 'Browse the Implexa skill library at any scope. Default is `personal` (skills YOU authored). Pass `team` or `org` to see your team-wide library (everyone''s saved skills). Pass `public` to browse base Playbooks + cross-org public skills. Use when the user says "show my skills", "list my skills", "show our team''s skills", "what skills do we have", "browse Playbooks", "what comes built-in", "what''s in the public library", or invokes /implexa:my-skills with or without a scope. Absorbs the old /implexa:org-skills (now scope=team) and /implexa:playbooks (now scope=public). NOTE — if the user wants to RUN one of these skills (vs. just browse), use /implexa:run instead — that fuzzy-matches against the same library and auto-applies. This is the BROWSING lens.'
+description: 'Browse the Implexa library at any scope. Default is `personal` (skills YOU authored). Pass `team` or `org` for your team-wide library; `public` for base Playbooks + cross-org public skills; `workflows` for the WHOLE-JOB workflows YOU saved (captured + generated, including private), each with run + schedule status so you can re-run or put one on autopilot. Use when the user says "show my skills", "list my skills", "show our team''s skills", "what skills do we have", "browse Playbooks", "show my workflows", "what workflows do I have", "my saved workflows", "the workflow I saved", or invokes /implexa:my-skills with or without a scope. Absorbs the old /implexa:org-skills (now scope=team) and /implexa:playbooks (now scope=public). NOTE — if the user wants to RUN something (vs. just browse), /implexa:run fuzzy-matches and auto-applies; this is the BROWSING lens.'
 ---
 
 # Browse the library at a chosen scope
@@ -15,6 +15,7 @@ Inspect `$ARGUMENTS` (the text after `/implexa:my-skills`). The first token is t
 | (none) or `personal` / `mine` / `me` | **personal** (default) | Skills YOU authored — your private library |
 | `team` / `org` / `ours` | **team** | Everyone's saved skills in your org (team-shared + private-to-you + public-from-your-org) |
 | `public` / `playbooks` / `library` / `all` | **public** | Base Playbooks + cross-org public skills |
+| `workflows` / `flows` / `my workflows` | **workflows** | The WHOLE-JOB workflows YOU saved (captured + generated, incl. private) — runnable + schedulable. See the Workflows lens below. |
 | (anything else) | personal, treat the whole arg as a query | — |
 
 Voice hint: if the user typed natural language ("show me my prospecting skills"), strip articles and use `prospecting` as the query under the default `personal` scope. If they typed "browse our team library", set scope to `team` and query to empty.
@@ -55,6 +56,23 @@ Includes: every active skill your org can see — your own + teammates' + base P
 }
 ```
 Includes: base Playbooks (`scope: 'system'` — ~30 across GTM / Talent / CS / ProductEng / PeopleOps / Finance / Marketing) + universal skills shared by other orgs.
+
+## Workflows lens (scope=workflows) — your saved whole-job workflows
+
+This lens uses a DIFFERENT tool and a DIFFERENT apply path than the skill scopes. A workflow is a whole job (an ordered chain), not a single skill.
+
+1. Call **`list_my_workflows`** (no args — it is owner-scoped to you, and includes your PRIVATE workflows that never show in the public catalog).
+2. Render each as a one-liner:
+   - **Name** + what you get (`primary_outcome` or `description`)
+   - origin badge: 🛠️ captured / ✨ generated · `step_count` steps
+   - status: `is_scheduled` → "⏱ on autopilot (`cadence`)", else "▷ not scheduled"; proof: "run `run_count`×" when > 0; "🌍 shared" when `shared`; "⚠ unproven" when `unproven`
+   - sort by most recent (`updated_at`) — the tool already returns them that way.
+3. After the list, surface the moves (this is the whole point of the lens — saved supply you can re-use):
+   - **Run one** → `apply_workflow({ workflow_id })` (preferred) or `{ slug, source }`.
+   - **Schedule one** that isn't on autopilot → `schedule_skill({ skillSlug: slug, source, scheduleNl: "<cadence>" })`, then `mcp__scheduled-tasks__create_scheduled_task` with the returned prompt/cron/tz.
+   - **Share one** that isn't shared (opt-in) → genericize, then `share_workflow({ slug, source, name, description })`.
+
+Empty state: *"You haven't saved any workflows yet. Do a multi-step job and say 'save this as a workflow', or describe a recurring job and I'll generate one — then it shows here, runnable and schedulable."*
 
 ## Step 2 — Render the results, scope-tagged
 
@@ -98,6 +116,7 @@ For public scope, optionally offer the fork-first path: if the user wants to use
 - `Show me skills I've authored` — `/implexa:my-skills personal`
 - `Show me the team's library` — `/implexa:my-skills team`
 - `Browse base Playbooks` — `/implexa:my-skills public`
+- `Show my workflows` — `/implexa:my-skills workflows`
 - `Run a skill — /implexa:run <slug>`
 - `Record a new skill — /implexa:record`
 

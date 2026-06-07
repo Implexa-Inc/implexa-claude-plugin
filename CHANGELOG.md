@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.27.5] - 2026-06-06
+
+Browse the workflows you've saved.
+
+### Added
+
+- **`/implexa:my-skills workflows`** lens. Lists the whole-job workflows YOU
+  saved (captured + generated, including private), each with run + schedule +
+  shared status, and one-tap to run (apply_workflow) or put on autopilot
+  (schedule_skill). Backed by the new owner-scoped list_my_workflows. Turns
+  captures from fire-and-forget into a browsable, re-runnable library.
+
 ## [0.27.4] - 2026-06-06
 
 `/implexa:run` now leads with whole-job workflows.
