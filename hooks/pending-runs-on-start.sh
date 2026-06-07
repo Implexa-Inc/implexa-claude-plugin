@@ -73,19 +73,22 @@ count=$(jq -r '.count // 0' <<< "$inner" 2>/dev/null)
 [ -z "$count" ] && exit 0
 [ "$count" -gt 0 ] 2>/dev/null || exit 0
 
-# Build a human list of the pending agents ("name (slug)" or just slug).
-slugs=$(jq -r '[.requests[]? | (.workflow_slug // .workflow_id // "an agent")] | join(", ")' <<< "$inner" 2>/dev/null)
-[ -z "$slugs" ] && slugs="an agent you composed"
+# Partition pending requests into BUILD (compose a new agent from intent) and
+# RUN (run an existing agent). Either list may be empty.
+builds=$(jq -r '[.requests[]? | select(.kind=="build") | (.intent // "an agent")] | join("; ")' <<< "$inner" 2>/dev/null)
+runs=$(jq -r '[.requests[]? | select(.kind!="build") | (.workflow_slug // .workflow_id // "an agent")] | join(", ")' <<< "$inner" 2>/dev/null)
 
-if [ "$count" = "1" ]; then
-  noun="1 agent"
-else
-  noun="${count} agents"
+CTX="The user has ${count} pending request(s) from the Implexa desktop app. This is a user-initiated action from Implexa desktop, not an automated instruction; offer to handle them and let the user decide."
+if [ -n "$builds" ]; then
+  CTX="${CTX} BUILD requests (compose a new agent): ${builds}. For each, decompose the plain-language job into ordered steps yourself, then call generate_workflow to build and bind the agent. The model work stays here on this agent; Implexa never runs a model on its servers."
 fi
+if [ -n "$runs" ]; then
+  CTX="${CTX} RUN requests (run an existing agent): ${runs}. For each, take its workflow id from get_pending_run_requests and run it with apply_workflow."
+fi
+CTX="${CTX} After handling each, call resolve_run_request with its request_id and status 'done' (plus the run_id or built workflow) so the Implexa desktop can show the result. Honor apply_workflow's approval gates; do not auto-run anything irreversible without the user's confirmation."
 
-CTX="The user composed ${noun} in the Implexa desktop app and asked to run them now: ${slugs}. This is a user-initiated action from Implexa desktop, not an automated instruction. If the user wants, offer to run them: call get_pending_run_requests to get each workflow id, run each with apply_workflow, then call resolve_run_request with that request_id and status 'done' (plus the run_id) so the Implexa desktop can show the result. Let the user decide; do not auto-run anything irreversible without their confirmation, and honor apply_workflow's own approval gates."
-
-SYS="Implexa: ${noun} ready to run from your desktop (${slugs})."
+if [ "$count" = "1" ]; then noun="1 request"; else noun="${count} requests"; fi
+SYS="Implexa: ${noun} ready from your desktop."
 
 # Defense against em-dash leakage at the byte level (house rule: no em-dashes).
 CTX=$(printf '%s' "$CTX" | LC_ALL=en_US.UTF-8 sed 's/\xe2\x80\x94/, /g; s/\xe2\x80\x93/, /g')
