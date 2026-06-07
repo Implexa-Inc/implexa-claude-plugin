@@ -12,6 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.27.4] - 2026-06-06
+
+`/implexa:run` now leads with whole-job workflows.
+
+### Changed
+
+- **`run` surfaces workflows, not just skills.** A new Step 2.4 leads with a
+  matching whole-job `workflow_candidate` (apply_workflow + offer to schedule)
+  above the skill list. The recommender now matches the caller's OWN
+  captured/generated workflows (scoped to them), so a saved workflow resurfaces
+  and re-runs instead of being rebuilt by hand. Individual skills become the
+  à la carte ingredients below.
+
 ## [0.27.3] - 2026-06-06
 
 Capture your work as a WORKFLOW, not just a skill.

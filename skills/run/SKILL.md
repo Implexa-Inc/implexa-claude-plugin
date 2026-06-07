@@ -1,5 +1,5 @@
 ---
-description: 'Find and run the best-fit skill for what the user wants to do, searching BOTH the user''s personal/org library AND the cross-vendor skill graph (Anthropic, Smithery, ClawHub, Skills.sh, GitHub, agentskills, Cursor, Continue) ranked together. Use when the user says "find me a skill for X", "implexa, find me X", "do I have a skill for X", "is there a skill that does X", "run my X skill", "use my X workflow", "implexa run X", "apply skill X", "find a skill", "search skills", "what skills do I have for X", "use my skill", "run a saved workflow", "use the X one", or invokes /implexa:run with a description. THE unified recommender entry point. Personal/team library matches are tagged [personal] or [team] and apply via apply_org_skill. Cross-vendor matches are tagged [anthropic]/[smithery]/[clawhub]/[skills-sh]/[agentskills]/[github]/[cursor]/[continue] and apply inline via apply_recommended_skill. Both kinds rank against the same query. The user doesn''t need to know which source has what; they ask, they get the best matches. ALWAYS prefer this path over going directly to other MCP tools when the user implies they want to USE an existing skill (vs build a new one from scratch).'
+description: 'Find and run the best-fit skill OR whole-job workflow for what the user wants to do, searching the user''s personal/org library, their own saved + generated workflows, AND the cross-vendor skill graph (Anthropic, Smithery, ClawHub, Skills.sh, GitHub, agentskills, Cursor, Continue) ranked together. When a whole-job workflow matches the intent, LEAD with it (apply_workflow) and offer to schedule it; individual skills are the à la carte ingredients below. Use when the user says "find me a skill for X", "implexa, find me X", "do I have a skill for X", "is there a skill that does X", "run my X skill", "use my X workflow", "implexa run X", "apply skill X", "find a skill", "search skills", "what skills do I have for X", "use my skill", "run a saved workflow", "use the X one", or invokes /implexa:run with a description. THE unified recommender entry point. Personal/team library matches are tagged [personal] or [team] and apply via apply_org_skill. Cross-vendor matches are tagged [anthropic]/[smithery]/[clawhub]/[skills-sh]/[agentskills]/[github]/[cursor]/[continue] and apply inline via apply_recommended_skill. Both kinds rank against the same query. The user doesn''t need to know which source has what; they ask, they get the best matches. ALWAYS prefer this path over going directly to other MCP tools when the user implies they want to USE an existing skill (vs build a new one from scratch).'
 ---
 
 # Run a skill (unified recommender)
@@ -67,6 +67,20 @@ ONE call to each backend is the WHOLE search. Do not re-query the recommender
 with sub-phrases or per-feature splits, the single response already carries
 everything (matches, module_candidate, recommendation_event_id). Re-calling is
 the most common cause of a noisy 10+ tool run for what should be 2-3 calls.
+
+## Step 2.4, whole-job workflow (lead with this when one matches)
+
+If `recommend_skills_for_context` returned a `workflow_candidate`, the user's intent maps to a WHOLE JOB implexa can run end to end — not just a single skill. This is the highest-value surface: **LEAD with it**, above the module card and above the merged skill list.
+
+1. Render the offer in one honest line — what they get + real proof. Use the candidate's fields:
+   - `workflow_candidate.workflow.name`, `.outcome`, `.cadence`, `.step_count`
+   - proof when present: `run_count` / `scheduled_count` → "N run this on autopilot" / "run N×"
+   - the candidate's `pitch` line.
+2. On the user's go, run it with **`apply_workflow`** using `workflow_candidate.apply_call.args`.
+3. In the SAME breath, if `workflow_candidate.schedule_call` is present, offer the autopilot: *"run it now to see it work, then it keeps happening and emails you the result"* → `schedule_skill` with `schedule_call.args`, then `mcp__scheduled-tasks__create_scheduled_task` with the returned prompt/cron/tz.
+4. The merged skill list (Step 3) sits BELOW as the **ingredients** — individual skills to run à la carte if they don't want the whole job.
+
+This is also what makes a user's OWN captured/generated workflows resurface: the recommender now matches the caller's private workflows (scoped to them), so "run my X" or a matching intent re-offers the whole job they saved — ready to re-run or schedule, not rebuilt by hand. If there is NO `workflow_candidate`, skip this step.
 
 ## Step 2.5, verified-module trust-card (lead with this on build intents)
 
