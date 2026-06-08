@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.28.0] - 2026-06-07
+
+The desktop handoff: build and run agents from the Implexa app.
+
+### Added
+
+- **SessionStart pending-request hook.** When you compose an agent in the Implexa
+  desktop app (build it from a prompt, or run an existing one) and open your
+  Claude or Codex, the plugin now reads your pending requests and offers, in one
+  honest line, to handle them: it decomposes a BUILD intent into steps and calls
+  `generate_workflow`, or runs an existing agent with `apply_workflow`, then marks
+  the request done so the desktop shows the result. The model work stays on your
+  own agent: Implexa never runs a model. Non-blocking and silent when nothing is
+  pending; surfaces only a user-initiated action, never an injected instruction.
+
 ## [0.27.7] - 2026-06-06
 
 Loop-powered workflows: reactive (watch) and converging (until) triggers.

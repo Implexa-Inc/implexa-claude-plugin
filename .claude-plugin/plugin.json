@@ -1,6 +1,6 @@
 {
   "name": "implexa",
-  "version": "0.27.7",
+  "version": "0.28.0",
   "description": "Implexa watches how you work in Claude and surfaces the right move before you build it by hand: the best-fit skill from a 40,000+ cross-vendor index (Anthropic, Cursor, Smithery, ClawHub, Skills.sh, GitHub, and more), a verified open-source module (license-safe, provenance-checked, advisory-scanned), or a whole-job workflow such as a daily content pack, a weekly market report, or a morning build brief, each one stitched from verified skills and runnable on a schedule. It also notices the work you repeat and offers to automate it, so your routines run on their own instead of being redone by hand every day. Capture your own workflow once, share it with your team, and track which ones actually deliver. Built on the open Agent Skills standard, runs across Claude Code, Cursor, Codex, and Gemini. Free for personal use.",
   "author": {
     "name": "Implexa",
