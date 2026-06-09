@@ -25,16 +25,29 @@ set -o pipefail
 
 API_KEY="${IMPLEXA_API_KEY:-}"
 API_URL="${IMPLEXA_API_URL:-https://core.implexa.ai}"
-PLUGIN_VERSION="0.28.0"
+PLUGIN_VERSION="0.32.0"
 
 # Silent no-ops: missing key or deps. Never block or error the session.
 [ -z "$API_KEY" ] && exit 0
 command -v jq   >/dev/null 2>&1 || exit 0
 command -v curl >/dev/null 2>&1 || exit 0
 
-# Drain stdin (Claude sends the SessionStart payload as JSON); we do not need
-# any field from it, but reading avoids a broken-pipe on the caller's side.
-cat >/dev/null 2>&1 || true
+# Read stdin (Claude sends the event payload as JSON). We need the event name so
+# the SAME script serves SessionStart AND UserPromptSubmit (eager activation: a
+# queued request reconciles on the user's next message, not only a new session).
+payload=$(cat 2>/dev/null || echo '')
+event=$(printf '%s' "$payload" | jq -r '.hook_event_name // "SessionStart"' 2>/dev/null)
+[ -z "$event" ] && event="SessionStart"
+
+# Debounce the per-message UserPromptSubmit path so we do not hit the network on
+# every turn: at most one check per 60s. SessionStart always checks (new session).
+STAMP="${TMPDIR:-/tmp}/implexa-pending-${API_KEY:0:8}.ts"
+nowts=$(date +%s 2>/dev/null || echo 0)
+if [ "$event" = "UserPromptSubmit" ] && [ -f "$STAMP" ]; then
+  lastts=$(cat "$STAMP" 2>/dev/null || echo 0)
+  [ $(( nowts - lastts )) -lt 60 ] 2>/dev/null && exit 0
+fi
+printf '%s' "$nowts" > "$STAMP" 2>/dev/null || true
 
 # ── Call get_pending_run_requests over the MCP HTTP channel ──────────────────
 body=$(jq -n '{
@@ -98,12 +111,12 @@ SYS="Implexa: ${noun} ready from your desktop."
 CTX=$(printf '%s' "$CTX" | LC_ALL=en_US.UTF-8 sed 's/\xe2\x80\x94/, /g; s/\xe2\x80\x93/, /g')
 SYS=$(printf '%s' "$SYS" | LC_ALL=en_US.UTF-8 sed 's/\xe2\x80\x94/, /g; s/\xe2\x80\x93/, /g')
 
-jq -cn --arg ctx "$CTX" --arg sys "$SYS" '{
+jq -cn --arg ctx "$CTX" --arg sys "$SYS" --arg evt "$event" '{
   continue: true,
   suppressOutput: true,
   systemMessage: $sys,
   hookSpecificOutput: {
-    hookEventName: "SessionStart",
+    hookEventName: $evt,
     additionalContext: $ctx
   }
 }' 2>/dev/null
