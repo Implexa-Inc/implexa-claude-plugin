@@ -163,6 +163,44 @@ This is the reliability step that prevents the silent-stall failure: an agent ru
 
 5. **If `permissionManifest.requires_browser` is true:** note that this agent drives the browser, so it must run while the machine is on (it cannot move to a remote routine). The pre-grant still applies for its local runs.
 
+## Step 2.8 — Reachability gate (do not schedule an agent against an inbox it cannot reach)
+
+Pre-granting permissions makes the unattended run *run*; it does not make the accounts it needs *reachable*. A browser-driving agent signs into the user's real accounts (Gmail, a CRM, a calendar) through the paired Chrome profile. If a needed account is not signed in to any paired profile, the scheduled run will hit it, degrade, and produce a partial result, silently, every fire. Catch that here, at schedule time, while the user is present to fix it.
+
+This is a **recommendation, not a hard block.** You always let the user proceed. But an unreachable account must be SURFACED, never swallowed.
+
+**When to run this gate:** when `permissionManifest.requires_browser` is true (the clear signal the agent drives signed-in accounts). For a pure API / web-research agent (`requires_browser` false) there is no inbox to reach, skip straight to Step 3.
+
+1. **Read the connections status.** Call `get_connection_status` with `{ scheduledSkillId }` (from Step 2). This is the backend Connections read: it derives the agent's REQUIRED accounts/domains from its stored permission manifest and returns them against what the desktop has verified as reachable. Documented shape:
+
+   ```jsonc
+   {
+     "ok": true,
+     "scheduledSkillId": "uuid",
+     "requires_browser": true,
+     "needed":      [ { "kind": "domain",  "identifier": "mail.google.com", "account_hint": "founder@implexa.ai" } ],
+     "reachable":   [ { "identifier": "mail.google.com", "profile": "dedicated", "verified_at": "2026-06-08T..." } ],
+     "unreachable": [ { "kind": "account", "identifier": "rabi@implexa.ai", "reason": "not signed in to any paired profile" } ],
+     "unknown":     [ { "kind": "domain",  "identifier": "app.hubspot.com", "reason": "never verified" } ],
+     "warnings":    [ "Gmail account rabi@implexa.ai is not reachable in any paired Chrome profile." ]
+   }
+   ```
+
+2. **Best-effort, never block on the read itself.** If `get_connection_status` is not available in this session (the backend Connections stream may not be live yet), or returns `ok:false` or errors, skip the gate silently and continue to Step 3. A missing reachability read must never stop a schedule.
+
+3. **If `needed` is empty, or `unreachable` and `unknown` are both empty:** everything the agent needs is reachable. Say nothing extra, continue to Step 3.
+
+4. **If any needed account/domain is `unreachable` (or `unknown`):** WARN prominently and offer to connect now via `AskUserQuestion`:
+
+   > `<skillSlug>` needs **<list the unreachable identifiers + account hints>**, which <isn't / aren't> reachable in your paired Chrome profile yet. Scheduled runs will degrade until you connect <it / them>. Connect now, or schedule anyway?
+
+   Options: **Connect now (recommended)** / **Schedule anyway**.
+
+   - **Connect now:** the plugin cannot pair Chrome itself (the desktop owns pairing). Steer the user to the Implexa desktop app's "set up your agents' workspace" step, or app.implexa.ai/connections, and tell them to sign each listed account into the **dedicated** profile (the reliable home; main is best-effort backup only). After they say they have done it, re-call `get_connection_status` to VERIFY (do not assume) before finalizing. Repeat until the needed accounts are reachable, or the user chooses to proceed anyway.
+   - **Schedule anyway:** continue to Step 3. Carry the unreachable list into Step 4 so the confirmation surfaces it; do not let it vanish.
+
+5. `unknown` (never-verified) accounts are a softer signal than `unreachable`: mention them as "not yet verified, connect to be safe" but do not push as hard as a confirmed-unreachable account.
+
 ## Step 3 — Register with Claude Code's scheduled-tasks MCP
 
 Call **`mcp__scheduled-tasks__create_scheduled_task`** with:
@@ -191,6 +229,12 @@ Where `<destination summary>` is:
 - `Slack (via webhook) + Implexa dashboard` (when `slack-webhook` configured — do NOT echo the webhook URL)
 
 Keep it ≤ 4 lines. Do not echo the cron expression unless the user asked for it.
+
+**If Step 2.8 left any account unreachable** (the user chose "Schedule anyway"), append one honest line so the gap is visible at a glance:
+
+```
+⚠ Needs connecting: <unreachable accounts/domains>. Runs degrade until reachable. Connect at app.implexa.ai/connections.
+```
 
 ## What's next?
 
@@ -223,3 +267,4 @@ Schedule management is now available from inside Claude Code (no dashboard hop n
 | `mcp__scheduled-tasks__create_scheduled_task` is not available | Claude Code version doesn't expose scheduled-tasks MCP | Tell the user: "The Implexa manifest is saved (id=<id>), but Claude Code's scheduled-tasks MCP isn't available in this session. Run /implexa:run-scheduled <id> manually for now, or upgrade Claude Code and re-register." |
 | `create_scheduled_task` errors with permission denied | User hasn't granted Claude scheduled-tasks permission | Tell the user: "Claude Code needs permission to create scheduled tasks. Grant it via /mcp, then re-run /implexa:schedule." |
 | Schedule registered but later runs never fire | Cron task lost in Claude Code restart, or user revoked scheduled-tasks permission | Tell the user to check /mcp for the scheduled-tasks server status, then re-run /implexa:schedule to re-register. |
+| `get_connection_status` is not available / returns ok=false (Step 2.8) | Backend Connections read not live in this session | Skip the reachability gate silently and schedule normally. Never block a schedule on a missing reachability read. |

@@ -148,6 +148,23 @@ Do this:
 
 If `post_run_action.repo` does not exist on this machine, or `node`/the script is unavailable in this background context, skip the publish, note `"publish skipped: <reason>"` in the output, and continue to Step 3 (the run is still recorded; the user can publish by hand). Never fabricate a publish result.
 
+## Step 2.7 — Runtime reachability (degrade honestly, then record the unreachable account)
+
+A browser-driving agent signs into the user's real accounts (Gmail, a CRM, a calendar) through the paired Chrome profile. At run time an account that was reachable at schedule time can be unreachable now: signed out, the profile's session expired, the wrong Claude-account binding, or it was never connected. The reliability rule is the same as the permission rule in Step 1.5: **silence must never read as success.**
+
+This step applies whenever Step 2 needed a signed-in account and could not reach it. It is separate from a denied permission (Step 1.5): there the *tool* is blocked; here the tool ran but the *account it drives* is not reachable.
+
+1. **Degrade honestly via the existing fallback.** Reachability tries the dedicated profile first, then the main profile as best-effort backup. If BOTH are unreachable for a required account, the account is unreachable for this run. Do not paper over it with a plausible-looking empty result (e.g. "no new emails today" when the inbox was never opened).
+
+2. **Decide the status by load-bearing-ness:**
+   - The unreachable account was REQUIRED for the deliverable (e.g. the inbox the agent summarizes) → `status: "failed"`.
+   - The core deliverable still came out and the unreachable account was a secondary source → `status: "partial"`.
+   Never record a bare `"completed"` when a required account could not be reached.
+
+3. **Record the unreachable account** so both the dashboard Connections section AND the run-state surface show it. Collect each one and pass it to `record_scheduled_run` in Step 3 as `unreachableAccounts` (see the shape there). The backend fans this out: it stamps the `skill_runs` row (run-state) and upserts the account as `unreachable` in the Connections registry (so Connections shows the red marker without waiting for the desktop to re-verify).
+
+4. **Make the output specific.** `outputMarkdown` should name the account and the fix, e.g.: `Could not reach <account> in any paired Chrome profile, so this run is incomplete. Sign it into your dedicated Implexa profile (app.implexa.ai/connections), then it will run clean next fire.`
+
 ## Step 3 — Persist + deliver
 
 Call **`record_scheduled_run`** with:
@@ -160,10 +177,15 @@ Call **`record_scheduled_run`** with:
   // "durationMs":     <ms wall-clock from step 1 to here, optional>
   // "orchestrationId": "<uuid if step 2 used orchestrate_skills>",
   // "pluginDelivery":  <the receipt object from step 2.5, ONLY when destination=slack-plugin>
+  // "unreachableAccounts": [   // ONLY when Step 2.7 hit an unreachable account; omit otherwise
+  //   { "kind": "account", "identifier": "rabi@implexa.ai", "reason": "not signed in to any paired profile" }
+  // ]
 }
 ```
 
 **`pluginDelivery` is REQUIRED when destination.type=`slack-plugin`** and forbidden otherwise. The backend uses it to record the slack delivery receipt on the skill_runs row.
+
+**`unreachableAccounts`** (optional) carries what Step 2.7 found. Include it only when a required account could not be reached; omit the field entirely on a clean run. The backend records it on the `skill_runs` row (run-state) and upserts each account as `unreachable` in the Connections registry, so the dashboard surfaces the gap.
 
 The tool:
 - Inserts a `skill_runs` row (always, even if delivery failed at step 2.5)
@@ -205,5 +227,6 @@ Where `<delivery summary>` is:
 | `get_scheduled_skill_payload` returns `not found` | Schedule deleted (cron not yet cancelled) | Log a one-line warning and exit. |
 | `get_scheduled_skill_payload` returns `target skill no longer available` | Underlying skill archived/deleted | Manifest is already marked failed. Log and exit. |
 | Resolved skill content has runtime errors (unreachable tool, network failure) | Real failure during execution | Call `record_scheduled_run` with status=`failed` and outputMarkdown=a short failure summary. The user sees it in /runs. |
+| A required signed-in account is unreachable in any paired Chrome profile (Step 2.7) | The account is signed out, expired, or never connected | Degrade honestly. Set status `failed` (required) or `partial` (secondary), name the account + fix in `outputMarkdown`, and pass it in `unreachableAccounts`. Never record a bare `completed`. |
 | `record_scheduled_run` returns ok=false | DB insert failed | Log the error. The run is lost; user has no record. This should be very rare; consider it a backend incident. |
 | `record_scheduled_run` returns ok=true with delivery.slack.delivered=false | Slack webhook 4xx/5xx | Output the one-line summary noting Slack failed. The run is persisted; user can re-deliver from dashboard. |

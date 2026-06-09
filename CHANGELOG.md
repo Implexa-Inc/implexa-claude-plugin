@@ -12,6 +12,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.30.0] - 2026-06-08
+
+Connect-your-accounts: reachability gate at schedule time, honest degradation at run time.
+
+### Added
+
+- **Schedule-time reachability gate (`/implexa:schedule` Step 2.8).** Alongside the
+  permission pre-grant, a browser-driving agent's required accounts/domains (derived
+  from its permission manifest) are now checked against the backend Connections
+  status via `get_connection_status`. If a needed account is not reachable in a
+  paired Chrome profile, the schedule WARNS and offers to connect it now (steering
+  the user to sign the account into the dedicated profile and re-verifying before
+  finalizing) rather than silently scheduling an agent against an inbox it cannot
+  reach. A recommendation, not a hard block: the user can always schedule anyway,
+  and the gap is surfaced in the confirmation. Best-effort, a missing reachability
+  read never blocks a schedule.
+- **Runtime honest degradation + record (`/implexa:run-scheduled` Step 2.7).** When a
+  scheduled run hits a required signed-in account that is unreachable, it degrades
+  honestly via the existing fallback (dedicated profile, then main as backup) and
+  records the unreachable account through `record_scheduled_run`'s new
+  `unreachableAccounts` field. The backend stamps the run-state row AND upserts the
+  account as unreachable in the Connections registry, so the dashboard shows the
+  gap instead of the run quietly producing a partial result.
+
+## [0.29.0] - 2026-06-08
+
+Unattended-run permission pre-grant: the manifest is pre-approved at schedule time.
+
+### Added
+
+- **Permission pre-grant at schedule time (`/implexa:schedule` Step 2.7).** A scheduled
+  agent's permission manifest is now pre-approved once at schedule time via the bundled
+  `apply-permission-manifest.mjs`, so an unattended run executes under a scoped allowlist
+  and never stalls on an interactive permission prompt. Two additive, idempotent writes:
+  the scoped rules merge into `~/.claude/settings.json`, and a scheduled-run-scoped
+  `~/.claude/scheduled-tasks/.claude/settings.json` gets `defaultMode: "dontAsk"` so an
+  unforeseen tool fails fast and visibly instead of hanging. Never a blanket bypass.
+
 ## [0.28.0] - 2026-06-07
 
 The desktop handoff: build and run agents from the Implexa app.
