@@ -25,7 +25,7 @@ set -o pipefail
 
 API_KEY="${IMPLEXA_API_KEY:-}"
 API_URL="${IMPLEXA_API_URL:-https://core.implexa.ai}"
-PLUGIN_VERSION="0.32.0"
+PLUGIN_VERSION="0.33.0"
 
 # Silent no-ops: missing key or deps. Never block or error the session.
 [ -z "$API_KEY" ] && exit 0
@@ -100,7 +100,7 @@ if [ -n "$runs" ]; then
   CTX="${CTX} RUN requests (run an existing agent): ${runs}. For each, take its workflow id from get_pending_run_requests and run it with apply_workflow."
 fi
 if [ -n "$activates" ]; then
-  CTX="${CTX} ACTIVATE requests (switch a scheduled agent ON, from the Implexa dashboard): ${activates}. The dashboard cannot touch this app's scheduled-tasks runtime, so reconcile each here: if the agent has a PAUSED schedule, resume it (resume_scheduled_skill); if it has NO live schedule yet, register one with schedule_skill using its saved cadence. Either path also pre-grants its permissions so unattended runs do not stall. Then confirm to the user it is now running on its schedule."
+  CTX="${CTX} ACTIVATE requests (switch a scheduled agent ON, from the Implexa dashboard): ${activates}. The dashboard cannot touch this app's scheduled-tasks runtime, so reconcile each here. First look up the agent's schedule with list_scheduled_skills (match by skillSlug) to read its trigger, cronExpression, fireAt, id and timezone. If its status is paused, resume it (resume_scheduled_skill). If it has no live scheduled-task registered yet, register one via create_scheduled_task using the schedule's own shape: for a recurring schedule (trigger 'cron') pass cron=<its cronExpression> and tz=<its timezone>; for a ONE-TIME schedule (trigger 'once') pass fireAt=<its fireAt ISO timestamp> and NO cron (fireAt and cron are mutually exclusive, and the task auto-disables after it fires). In both cases the prompt is the wrapper shim '/implexa:run-scheduled <its id>'. Either path also pre-grants its permissions so unattended runs do not stall. Then confirm to the user it is now running on its schedule (or, for a one-time run, that it will run once at the set time)."
 fi
 CTX="${CTX} After handling each, call resolve_run_request with its request_id and status 'done' (plus the run_id or built workflow) so the Implexa desktop can show the result. Honor apply_workflow's approval gates; do not auto-run anything irreversible without the user's confirmation."
 

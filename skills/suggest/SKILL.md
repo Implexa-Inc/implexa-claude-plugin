@@ -1,20 +1,20 @@
 ---
-description: 'Suggest skills for what the user is working on. Two modes: (1) ACTIVE SEARCH if the user supplied a query ("suggest skills for social media", "find me something for cold email"), runs a fresh cross-vendor search AND merges in their buffered matches. (2) PASSIVE PULL if no query, just shows the recent recommendation buffer (what implexa noticed silently). Trigger phrases: "show me what implexa noticed", "what did implexa find", "implexa recommendations", "implexa picks", "implexa what do you have", "what''s implexa got for me", "suggest a skill for X", "is there a skill for X", or invokes $implexa-suggest with or without args. Each entry shows the skill name, source registry, fit reason, prompt excerpt, and source URL. The user can pick one to apply inline.'
+description: 'Suggest agents for what the user is working on. Two modes: (1) ACTIVE SEARCH if the user supplied a query ("suggest agents for social media", "find me something for cold email"), runs a fresh cross-vendor search AND merges in their buffered matches. (2) PASSIVE PULL if no query, just shows the recent recommendation buffer (what implexa noticed silently). Trigger phrases: "show me what implexa noticed", "what did implexa find", "implexa recommendations", "implexa picks", "implexa what do you have", "what''s implexa got for me", "suggest an agent for X", "is there an agent for X", "suggest a skill for X", "is there a skill for X", or invokes $implexa-suggest with or without args. Each entry shows the agent name, source registry, fit reason, prompt excerpt, and source URL. The user can pick one to apply inline.'
 ---
 
 # implexa:suggest, pull + search recommendations
 
-Dual-mode skill recommender:
+Dual-mode agent recommender:
 
-- **active search**: if the user provided a query (open-ended question like "suggest a skill for social media" or "is there a strong skill for X"), do a fresh cross-vendor recommender call AND merge in any buffered matches the user might already have. This is the common case from the slash-command menu.
+- **active search**: if the user provided a query (open-ended question like "suggest an agent for social media" or "is there a strong agent for X"), do a fresh cross-vendor recommender call AND merge in any buffered matches the user might already have. This is the common case from the slash-command menu.
 - **passive pull**: if the user invoked /implexa:suggest with NO args (just wants to see what implexa has been silently noticing), skip the fresh search and only show the buffer. Common case from the ambient recommender's UserPromptSubmit hook in Claude Code.
 
-The buffer lives server-side as of 2026-05-27 (not a local file), so this skill works the same across Claude Code, Codex, and any other MCP-compatible host.
+The buffer lives server-side as of 2026-05-27 (not a local file), so this agent recommender works the same across Claude Code, Codex, and any other MCP-compatible host.
 
 ## Step 0, detect mode
 
 Look at the user's invocation:
-- If they typed any natural-language query along with the command (e.g. `$implexa-suggest something to improve my social media`, or "suggest skills for cold email"), set `mode = "active"` and capture the query.
+- If they typed any natural-language query along with the command (e.g. `$implexa-suggest something to improve my social media`, or "suggest agents for cold email"), set `mode = "active"` and capture the query.
 - If they invoked it bare (`$implexa-suggest` or `/implexa:suggest` with no follow-on text), set `mode = "passive"`.
 
 When in doubt, default to `active` if there's ANY user-provided text beyond the slash command itself. Better to do a fresh search than to surface a stale buffer.
@@ -96,7 +96,7 @@ Build the unified list:
    - Render buffer entries only (no fresh search needed).
 4. If both modes return nothing usable, respond:
 
-   > implexa didn't find anything strong for that. either rephrase (more specific verbs/tools/outcomes), or check the full index at https://implexa.ai/search
+   > implexa didn't find any strong agents for that. either rephrase (more specific verbs/tools/outcomes), or check the community agent catalog at https://implexa.ai/search
 
    No padding, no apologies.
 
@@ -105,7 +105,7 @@ Build the unified list:
 Use this format:
 
 ```
-here's what implexa found for "<query if active, else 'you' if passive>":
+here's what implexa found for "<query if active, else 'you' if passive>" (agents):
 
 1. **<name>** (<source>): <fit_reason>
    score: <score if present, else "buffered">
@@ -126,23 +126,23 @@ After the list, ask exactly:
 If the user picks a number, says "run #N", or any clear affirmative naming one entry ("yes", "go ahead", "apply", "run draft-outreach"):
 
 1. Call the MCP tool `mcp__implexa__apply_recommended_skill` with `slug`, `source`, and `recommendation_event_id` (from the entry the user picked).
-2. The tool returns `{ ok, skill_content, skill_metadata, execution_instruction, applied_skill_event_id }`. The full SKILL.md body is in `skill_content`.
-3. Execute `skill_content` IMMEDIATELY against the user's current work. Do not summarize the skill, do not paste the SKILL.md back to the user, do not re-ask what they want done. The skill defines its own 6 components (intent, inputs, procedure, decision points, output contract, outcome signal); follow them in order. If the skill needs specific inputs you don't have, ask for just those inputs.
-4. If the tool returns `ok: false` (skill removed from the index, content empty, etc.), surface the `error` field honestly and offer the buffer entry's `install_hint` as a fallback.
+2. The tool returns `{ ok, skill_content, skill_metadata, execution_instruction, applied_skill_event_id }`. The full agent body is in `skill_content`.
+3. Execute `skill_content` IMMEDIATELY against the user's current work. Do not summarize the agent, do not paste the content back to the user, do not re-ask what they want done. The agent defines its own 6 components (intent, inputs, procedure, decision points, output contract, outcome signal); follow them in order. If the agent needs specific inputs you don't have, ask for just those inputs.
+4. If the tool returns `ok: false` (agent removed from the index, content empty, etc.), surface the `error` field honestly and offer the buffer entry's `install_hint` as a fallback.
 
 If the user says "skip" or picks no entry, do nothing.
 
 ## What this command IS NOT
 
-- It is NOT a search box. To search, the user types `implexa, find me a skill for X` (which calls `recommend_skills_for_context` directly; that call ALSO gets logged to the server buffer with `source='explicit'` so it shows up here later).
-- It is NOT a way to discover skills the recommender hasn't already buffered. If the user wants to browse the full index, point them at the dashboard or `clawhub.ai` / `smithery.ai` / `skills.sh` directly.
+- It is NOT a search box. To search, the user types `implexa, find me an agent for X` (which calls `recommend_skills_for_context` directly; that call ALSO gets logged to the server buffer with `source='explicit'` so it shows up here later).
+- It is NOT a way to discover agents the recommender hasn't already buffered. If the user wants to browse the community agent catalog, point them at the dashboard or `clawhub.ai` / `smithery.ai` / `skills.sh` directly.
 - It is NOT an install command. It's a retrieval surface that ends with an optional apply step.
 
 ## Migration note (2026-05-27)
 
-Prior versions of this skill read from a local file at
+Prior versions of this agent recommender read from a local file at
 `~/.claude/plugins/implexa/recent-recommendations.json`. That file is no
-longer the source of truth — the server-side `recommendation_events`
+longer the source of truth. The server-side `recommendation_events`
 table is. The Claude Code hook may keep writing the local file as a
 warm cache, but this command should always go through the MCP tool so
 behavior is identical across runtimes.

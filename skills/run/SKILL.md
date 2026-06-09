@@ -1,58 +1,71 @@
 ---
-description: 'Find and run the best-fit skill OR whole-job workflow for what the user wants to do, searching the user''s personal/org library, their own saved + generated workflows, AND the cross-vendor skill graph (Anthropic, Smithery, ClawHub, Skills.sh, GitHub, agentskills, Cursor, Continue) ranked together. When a whole-job workflow matches the intent, LEAD with it (apply_workflow) and offer to schedule it; individual skills are the à la carte ingredients below. Use when the user says "find me a skill for X", "implexa, find me X", "do I have a skill for X", "is there a skill that does X", "run my X skill", "use my X workflow", "implexa run X", "apply skill X", "find a skill", "search skills", "what skills do I have for X", "use my skill", "run a saved workflow", "use the X one", or invokes /implexa:run with a description. THE unified recommender entry point. Personal/team library matches are tagged [personal] or [team] and apply via apply_org_skill. Cross-vendor matches are tagged [anthropic]/[smithery]/[clawhub]/[skills-sh]/[agentskills]/[github]/[cursor]/[continue] and apply inline via apply_recommended_skill. Both kinds rank against the same query. The user doesn''t need to know which source has what; they ask, they get the best matches. ALWAYS prefer this path over going directly to other MCP tools when the user implies they want to USE an existing skill (vs build a new one from scratch).'
+description: 'Find and run the best-fit AGENT for what the user wants to do. An agent is a runnable, schedulable thing: the user''s own agents (saved + generated), their team''s, and ready-to-run agents from the community catalog (Anthropic, Smithery, ClawHub, Skills.sh, GitHub, agentskills, Cursor, Continue), all ranked together. Two paths: (1) NAMED agent ("run the implexa agent X", "run my X agent", "use the X one") resolves and runs that agent directly, no search narration; (2) DISCOVERY ("find me an agent for X", "implexa find me X", "do I have something for X") searches and offers the best matches. Use when the user says "run the implexa agent X", "run my X agent", "use my X agent", "implexa run X", "find me an agent for X", "implexa, find me X", "do I have an agent for X", "is there an agent that does X", "use the X one", "run a saved agent", or invokes /implexa:run with a description. THE unified entry point for running an existing agent. Their own + team agents apply via apply_org_skill / apply_workflow; community agents apply inline via apply_recommended_skill. Prefer this path over going straight to other MCP tools whenever the user wants to USE an existing agent (vs build a new one from scratch).'
 ---
 
-# Run a skill (unified recommender)
+# Run an agent
 
-THE single entry point for skill reuse. When a user types a query, this
-skill searches BOTH backends in parallel:
+THE single entry point for running an agent the user already has access to: their
+own and their team's agents, plus ready-to-run agents from the community catalog,
+all ranked against one query.
 
-1. their personal + team + org library (the curated skills they and their
-   teammates have already captured)
-2. the cross-vendor skill graph (252+ skills indexed from Anthropic, Smithery,
-   ClawHub, Skills.sh, GitHub, agentskills, Cursor, Continue)
+There are two paths, and the FIRST job is to tell them apart:
 
-Results merge into one ranked list. Personal matches carry the highest
-confidence (the user explicitly opted in to save them). Cross-vendor
-matches rank by cosine similarity from the recommender. The user picks
-one and we apply it inline, routing to the correct apply tool based on
-the chosen entry's source.
+- **Named agent** ("run the implexa agent Raw recording to clean cut", "run my
+  triage agent", "use the prospecting one") → the user already picked. Resolve
+  that one agent and run it. Do NOT narrate a multi-stage search.
+- **Discovery** ("find me an agent for cold outreach", "implexa find me X", "do
+  I have something for renewals") → search, offer the best matches, let them pick.
 
-This is the architectural unification that resolves the routing collision
-discovered during P2.2 smoke test. Claude Code's slash-command intent
-classifier routes "implexa, find me X" to /implexa:run regardless of
-phrasing, so /implexa:run IS the unified recommender. One mental model,
-one entry point.
+Stay quiet while you search. The user does not need a play-by-play of which
+backend you queried. Present results, not a search log.
 
-## Step 1, read intent
+## Step 0, named-agent fast path (do this first)
 
-Did the user give a query (a skill name, topic, vague description), or did
-they invoke /implexa:run with no description?
+If the user named a specific agent (by its name, an obvious nickname, or "the X
+one" pointing at a known agent), skip the merged search. Resolve and run it:
 
-- **Query given** ("find me a skill for cold outreach", "implexa, find me
-  X", "run my triage skill", "use the prospecting one", "is there a
-  skill for hubspot integration") → Step 2 (parallel query)
-- **No query** (just `/implexa:run` or "let me pick a skill to run") →
-  Step 6 (browse mode, personal library only)
+1. Look it up. Prefer the user's own agents first: call
+   `mcp__implexa__list_my_workflows` (their saved + generated agents) and match
+   by name/slug. If they clearly mean a team/library agent, use
+   `mcp__implexa__list_org_skills` with the name as `query`.
+2. **One confident match** → run it directly. For a whole-job agent (a workflow
+   artifact) use `mcp__implexa__apply_workflow` with its slug; for a library
+   agent use `mcp__implexa__apply_org_skill`. Then follow Step 5's "execute the
+   agent" rules. No list, no "searching the catalog" narration.
+3. **No match in their own/team agents** → tell them honestly in one line, then
+   offer the discovery path: "I don't see an agent named X in yours or your
+   team's. Want me to look in the community catalog?" Only search on a yes.
+4. **Genuinely ambiguous** (two agents could be "the X one") → show just those
+   two and let them pick. Don't expand into a full search.
+
+Only fall through to Step 1 when the user did NOT name a specific agent.
+
+## Step 1, read intent (discovery path)
+
+Did the user give a query (a topic or vague description), or did they invoke
+`/implexa:run` with no description?
+
+- **Query given** ("find me an agent for cold outreach", "implexa, find me X",
+  "is there an agent for hubspot") → Step 2 (parallel query).
+- **No query** (just `/implexa:run` or "let me pick an agent to run") → Step 6
+  (browse mode, their own agents only).
 
 Don't strip articles like "my" / "the" / "a", those are part of how users
 naturally describe what they want. Pass the substantive words as the query:
-"find me a skill for cold outreach" gives query "cold outreach", "the triage
-one" gives query "triage", "use my Implexa skill for outreach" gives query
-"outreach".
+"find me an agent for cold outreach" gives query "cold outreach", "the triage
+one" gives query "triage".
 
-## Step 2, query both backends in parallel
+## Step 2, search (run both lookups in parallel, quietly)
 
-Make both tool calls in the SAME response so they run concurrently. Do
-NOT wait for one before starting the other.
+Make both calls in the SAME response so they run concurrently. Do NOT wait for
+one before starting the other, and do NOT narrate them.
 
 **Call A**, `mcp__implexa__list_org_skills`:
 - `query`: the user's substantive words
-- `createdByMe`: **false** (search the full org library, not just user's
-  own. a teammate's skill is still a personal-library match for our
-  purposes)
-- `includeUniversal`: **false** (we cover public skills via the cross-vendor
-  index instead, avoids double-counting)
+- `createdByMe`: **false** (search the full library, not just the user's own; a
+  teammate's agent is still a match for our purposes)
+- `includeUniversal`: **false** (the community catalog covers public agents; this
+  avoids double-counting)
 - `limit`: 5
 
 **Call B**, `mcp__implexa__recommend_skills_for_context`:
@@ -60,36 +73,54 @@ NOT wait for one before starting the other.
 - `topN`: 5
 - `minScore`: 0.20
 
-If either backend errors or times out (>10s), proceed with whatever the
-other returned. Never block the user on a slow backend.
+If either lookup errors or times out (>10s), proceed with whatever the other
+returned. Never block the user on a slow backend.
 
-ONE call to each backend is the WHOLE search. Do not re-query the recommender
-with sub-phrases or per-feature splits, the single response already carries
-everything (matches, module_candidate, recommendation_event_id). Re-calling is
-the most common cause of a noisy 10+ tool run for what should be 2-3 calls.
+ONE call to each backend is the WHOLE search. Do not re-query with sub-phrases or
+per-feature splits, the single response already carries everything (matches,
+module_candidate, workflow_candidate, recommendation_event_id). Re-calling is the
+most common cause of a noisy 10+ tool run for what should be 2-3 calls.
 
-## Step 2.4, whole-job workflow (lead with this when one matches)
+## Step 2.4, whole-job agent (lead with this when one matches)
 
-If `recommend_skills_for_context` returned a `workflow_candidate`, the user's intent maps to a WHOLE JOB implexa can run end to end — not just a single skill. This is the highest-value surface: **LEAD with it**, above the module card and above the merged skill list.
+If `recommend_skills_for_context` returned a `workflow_candidate`, the user's
+intent maps to a WHOLE JOB implexa can run end to end and keep running on a
+schedule. This is the highest-value match: **LEAD with it**, above everything
+else.
 
-1. Render the offer in one honest line — what they get + real proof. Use the candidate's fields:
+1. Render the offer in one honest line, what they get + real proof. Use the
+   candidate's fields:
    - `workflow_candidate.workflow.name`, `.outcome`, `.cadence`, `.step_count`
-   - proof when present: `run_count` / `scheduled_count` → "N run this on autopilot" / "run N×"
+   - proof when present: `run_count` / `scheduled_count` → "N people run this on
+     autopilot" / "run N times"
    - the candidate's `pitch` line.
-2. On the user's go, run it with **`apply_workflow`** using `workflow_candidate.apply_call.args`.
-3. In the SAME breath, offer the autopilot, matched to the workflow's trigger:
-   - **`schedule_call` present (cron workflow)** → *"run it now to see it work, then it keeps happening and emails you the result"*. Resolve any unanswered config first (`get_workflow_setup` → ask → `save_workflow_setup`), then `schedule_skill` with `schedule_call.args`, then `mcp__scheduled-tasks__create_scheduled_task` with the returned prompt/cron/tz.
-   - **`loop_call` present (watch/until workflow)** → this is a LIVE workflow, fired by a Claude `/loop` session, not a clock. Offer: *"run it now, then start it live"*. Call `schedule_skill` with `loop_call.args`; it returns a `loopInvocation` string — give it to the user to paste (e.g. `/loop Watch for: …; when it happens, run /implexa:run-scheduled <id>`). For `watch` it reacts to the event; for `until` it re-runs to convergence. It runs while the session is open.
-4. The merged skill list (Step 3) sits BELOW as the **ingredients** — individual skills to run à la carte if they don't want the whole job.
+2. On the user's go, run it with **`apply_workflow`** using
+   `workflow_candidate.apply_call.args`.
+3. In the SAME breath, offer the autopilot, matched to the agent's trigger:
+   - **`schedule_call` present (recurring agent)** → "run it now to see it work,
+     then it keeps happening and emails you the result". Resolve any unanswered
+     config first (`get_workflow_setup` → ask → `save_workflow_setup`), then
+     `schedule_skill` with `schedule_call.args`, then
+     `mcp__scheduled-tasks__create_scheduled_task` with the returned prompt/cron/tz.
+   - **`loop_call` present (watch/until agent)** → this is a LIVE agent, fired by
+     a Claude `/loop` session, not a clock. Offer: "run it now, then start it
+     live". Call `schedule_skill` with `loop_call.args`; it returns a
+     `loopInvocation` string, give it to the user to paste. For `watch` it reacts
+     to the event; for `until` it re-runs to convergence. It runs while the
+     session is open.
+4. The merged list (Step 3) sits BELOW as the simpler à-la-carte agents, if they
+   don't want the whole job.
 
-This is also what makes a user's OWN captured/generated workflows resurface: the recommender now matches the caller's private workflows (scoped to them), so "run my X" or a matching intent re-offers the whole job they saved — ready to re-run or schedule, not rebuilt by hand. If there is NO `workflow_candidate`, skip this step.
+This is also what resurfaces a user's OWN saved/generated agents: the recommender
+matches the caller's private agents (scoped to them), so a matching intent
+re-offers the whole job they saved, ready to re-run or schedule, not rebuilt by
+hand. If there is NO `workflow_candidate`, skip this step.
 
 ## Step 2.5, verified-module trust-card (lead with this on build intents)
 
-If `recommend_skills_for_context` returned a `module_candidate` block, the user
-is asking to BUILD something that maps to a verified open-source package. This
-is the highest-value surface, so LEAD with it, before the merged list and
-before you write any implementation from memory:
+If `recommend_skills_for_context` returned a `module_candidate` block, the user is
+asking to BUILD something that maps to a verified open-source package. LEAD with
+it, before the merged list and before you write any implementation from memory:
 
 1. The response's `nextAction` is your directive. Follow it: call
    `mcp__implexa__verify_module` with `module_candidate.suggested_call.args` to
@@ -100,58 +131,55 @@ before you write any implementation from memory:
    implexa verified: <pkg> <version> · <license> · <signed|declared> · <N CVEs> · scorecard <x>
    caveat: <module_candidate.module.caveat>
    ```
-3. The `module_candidate.paired_skill` (an [implexa] entry, the procedure bound
-   to the verified module) is your #1 recommendation. The cross-vendor matches
-   from Step 3 sit BELOW it as alternatives.
-4. On the user's go, apply the paired skill via `apply_recommended_skill` with
+3. The `module_candidate.paired_skill` (an [implexa] entry, the procedure bound to
+   the verified module) is your #1 recommendation. The community matches from Step
+   3 sit BELOW it as alternatives.
+4. On the user's go, apply the paired entry via `apply_recommended_skill` with
    `module_candidate.apply_call.args`.
 
-Do NOT hand-roll the implementation when a verified module is on offer, the
-whole point is the user gets code they can trust. If there is NO
-module_candidate, skip this step and proceed to the normal merged list.
+Do NOT hand-roll the implementation when a verified module is on offer, the whole
+point is the user gets code they can trust. If there is NO module_candidate, skip
+this step and proceed to the merged list.
 
 ## Step 3, merge and rank
 
-Build a unified list:
+Build one unified list of agents:
 
-**Personal/team matches (from list_org_skills)**:
-- Tag each with `[personal]` if `scope === 'private'` OR the skill was
-  created by the current user (createdBy matches).
+**Your + team agents (from list_org_skills)**:
+- Tag each with `[yours]` if `scope === 'private'` OR it was created by the
+  current user.
 - Tag with `[team]` if `scope === 'org'`.
-- Tag with `[system]` if `scope === 'system'` (base Playbook).
-- These don't carry a numerical score (list_org_skills is a substring
-  filter, not a similarity match), but treat them as high-confidence by
-  default because they're curated and the user has access already.
+- Tag with `[base]` if `scope === 'system'` (a base Playbook).
+- These don't carry a numerical score (list_org_skills is a substring filter, not
+  a similarity match), but treat them as high-confidence by default: they're
+  curated and the user already has access.
 
-**Cross-vendor matches (from recommend_skills_for_context)**:
+**Community agents (from recommend_skills_for_context)**:
 - Tag each with the `source` field verbatim: `[anthropic]`, `[smithery]`,
   `[clawhub]`, `[skills-sh]`, `[agentskills]`, `[github]`, `[cursor]`,
   `[continue]`.
 - They carry a `score` field (0..1, normalized cosine similarity).
 
 **Ordering rule**:
-1. Personal/team matches first (top of the list), ordered by `usageCount`
-   desc when there's more than one. The user's own library wins on
-   ambiguity.
-2. Cross-vendor matches next, ordered by `score` desc.
-3. **Dedupe by slug**: if a personal-library skill has the same slug as
-   a cross-vendor one (possible if the user forked from the public
-   library), keep the personal entry and drop the cross-vendor copy.
+1. Your + team agents first, ordered by `usageCount` desc when there's more than
+   one. The user's own wins on ambiguity.
+2. Community agents next, ordered by `score` desc.
+3. **Dedupe by slug**: if one of the user's agents has the same slug as a
+   community one (they forked it), keep theirs and drop the community copy.
 4. **Cap at top 5 total**.
 
 ## Step 4, display the merged list
 
-Render the unified list. Voice: lowercase, tech-bro, no em-dashes
-anywhere (use commas, periods, colons, parens, regular hyphens).
+Render the unified list. Voice: lowercase, plain, no em-dashes anywhere (use
+commas, periods, colons, parens, regular hyphens).
 
 Example output:
 
 ```
-here are the best matches for "cold outreach":
+here are the best agents for "cold outreach":
 
-1. **prospect research to cold email** [personal]
-   your saved workflow, used 12 times
-   from this org's library
+1. **prospect research to cold email** [yours]
+   your saved agent, run 12 times
 
 2. **draft outreach** [smithery]
    score 0.62, fits because the prompt mentions cold outreach drafting
@@ -161,94 +189,86 @@ here are the best matches for "cold outreach":
    score 0.54, fits because cold outreach into linkedin contacts
    source: https://clawhub.ai/...
 
-4. **email warming campaign builder** [anthropic]
-   score 0.41, fits because email outreach setup and warming
-   source: https://anthropic.com/skills/...
-
-want me to run any of these inline? reply with a number, or "skip".
+want me to run any of these? reply with a number, or "skip".
 ```
 
-For personal/team entries, show the skill description (or first 80 chars
-of it) in place of the fit_reason. For cross-vendor entries, show the
-score and the `fit_reason` returned by the recommender.
+For your/team entries, show the agent's description (or first 80 chars) in place
+of the fit_reason. For community entries, show the score and the `fit_reason`
+returned by the recommender.
 
-## Step 5, apply the chosen entry
+## Step 5, run the chosen agent
 
-When the user picks a number ("3"), names one ("run the draft-outreach
-one"), or gives any affirmative ("yes apply #2", "go ahead with the
-linkedin one"), apply that entry. **Route by source**:
+When the user picks a number ("3"), names one ("run the draft-outreach one"), or
+gives any affirmative ("yes run #2", "go ahead with the linkedin one"), run that
+agent. **Route by source**:
 
-**If source is `personal`, `team`, or `system`** (any list_org_skills
-entry):
+**If it's a whole-job agent (a workflow artifact, from list_my_workflows or a
+workflow_candidate)**:
+- Call `mcp__implexa__apply_workflow` with its slug + any context the user gave.
+
+**If source is `yours`, `team`, or `base`** (any list_org_skills entry):
 - Call `mcp__implexa__apply_org_skill` with:
-  - `skillId`: the `skillId` from the list_org_skills entry (preferred)
-  - OR `skillSlug`: the `slug` if no id is to hand
-  - `invocationArgs`: any context the user provided (account names,
-    ticket ids, candidates, opportunities, threads, domains)
-- The response includes the full SKILL.md in `content`. Execute it
+  - `skillId`: the `skillId` from the entry (preferred), OR `skillSlug`: the slug
+  - `invocationArgs`: any context the user provided (account names, ticket ids,
+    candidates, opportunities, threads, domains)
+- The response includes the full agent definition in `content`. Execute it
   immediately against the user's original intent.
 
-**If source is one of the aggregator names** (`anthropic`, `smithery`,
-`clawhub`, `skills.sh`, `agentskills`, `github`, `cursor`, `continue`):
+**If source is a community catalog name** (`anthropic`, `smithery`, `clawhub`,
+`skills.sh`, `agentskills`, `github`, `cursor`, `continue`):
 - Call `mcp__implexa__apply_recommended_skill` with:
-  - `slug`: the slug from the recommender entry
-  - `source`: the source from the recommender entry (verbatim)
-  - `recommendation_event_id`: the top-level `recommendation_event_id`
-    returned by recommend_skills_for_context (this attributes the apply
-    back to the surfacing event for the install-rate metric)
-- The response shape is
-  `{ ok, skill_content, skill_metadata, execution_instruction,
-  applied_skill_event_id }`. The full SKILL.md body is in
+  - `slug`: the slug from the entry
+  - `source`: the source from the entry (verbatim)
+  - `recommendation_event_id`: the top-level `recommendation_event_id` returned by
+    recommend_skills_for_context (attributes the run back to the surfacing event)
+- The response shape is `{ ok, skill_content, skill_metadata,
+  execution_instruction, applied_skill_event_id }`. The full definition is in
   `skill_content`. Execute it immediately.
 
-**In either case**: don't summarize the skill, don't paste the SKILL.md
-back at the user, don't re-ask what they want done. The skill defines
-its own 6 components (intent, inputs, procedure, decision points, output
-contract, outcome signal). Follow them in order. If the skill needs
-inputs the user hasn't provided, ask for just those inputs.
+**In every case**: don't summarize the agent, don't paste its definition back at
+the user, don't re-ask what they want done. The agent defines its own procedure;
+follow it in order. If it needs inputs the user hasn't provided, ask for just
+those inputs.
 
 ## Step 6, browse mode (no-query path)
 
-If the user invoked `/implexa:run` with no description, fall back to
-the personal-library browse. Cross-vendor search needs a query (there's
-no "show me everything" surface for a 252-row index), so we don't query
-the recommender here.
+If the user invoked `/implexa:run` with no description, fall back to browsing
+their own agents. The community catalog needs a query (there's no "show me
+everything" surface for the index), so we don't query the recommender here.
 
 Call `mcp__implexa__list_org_skills` with `createdByMe: false`, `limit: 20`.
 Render the result as a numbered list with scope icons:
 
 ```
-here are your skills, pick one to run:
+here are your agents, pick one to run:
 
   1. 🔒 daily prospecting,         find net-new ICP-matching accounts
   2. 👥 bug triage from jira,      multi-source triage summary
   3. 🌍 launch content pack,       show HN + reddit + linkedin drafts
   4. 🔒 customer health brief,     renewal risk dossier
 
-reply with a number, or describe it ("the triage one", "the third one",
-"the one for linkedin").
+reply with a number, or describe it ("the triage one", "the third one").
 ```
 
 Scope icons:
 - 🔒 private (only you)
 - 👥 team (shared in your org)
-- 🌍 universal / system (public or base Playbook)
+- 🌍 base / public
 
-When the user picks, resolve to that skill and go to Step 5's
-apply_org_skill path.
+When the user picks, resolve to that agent and run it via Step 5.
 
 ## Step 7, ask for feedback (Like / Dislike / Improve)
 
-After the skill finishes its work, prompt the user for a quick reaction
-so we can feed SkillRank. Use this exact line:
+After the agent finishes its work, prompt the user for a quick reaction so we can
+feed the rank. Use this exact line:
 
-> how was that? **like** (👍), **dislike** (👎), or **improve** (✏️) — or just keep going
+> how was that? **like** (👍), **dislike** (👎), or **improve** (✏️), or just keep going
 
-The three responses route as follows. The id you'll pass through is:
-- `aggregated_skill_id` from `skill_metadata.id` (cross-vendor applies), OR
-- `org_skill_id` from the apply_org_skill response (personal/team/system),
-- `applied_skill_event_id` from whichever apply call you just made (always
-  pass this so we can attribute the rating back to the specific run).
+The id you'll pass through is:
+- `aggregated_skill_id` from `skill_metadata.id` (community runs), OR
+- `org_skill_id` from the apply_org_skill response (your/team/base),
+- `applied_skill_event_id` from whichever apply call you just made (always pass
+  this so we can attribute the rating to the specific run).
 
 ### like (positive signal)
 
@@ -265,13 +285,13 @@ Call `mcp__implexa__submit_skill_feedback` with:
 ```json
 { "...": "...", "rating": "dislike", "applied_skill_event_id": "..." }
 ```
-Optionally ask "anything specific?" — if the user answers, pass that as
+Optionally ask "anything specific?", if the user answers, pass that as
 `comment`. Reply briefly: `got it, dropping the rank. try /implexa:suggest for an alternative.`
 
-### improve (re-record path)
+### improve (edit path)
 
-Ask the user: "what would you change about this skill?" — capture their
-answer as the comment.
+Ask the user: "what would you change about this agent?", capture their answer as
+the comment.
 
 Then call `mcp__implexa__submit_skill_feedback` with:
 ```json
@@ -280,117 +300,105 @@ Then call `mcp__implexa__submit_skill_feedback` with:
   "applied_skill_event_id": "..." }
 ```
 
-The tool returns `nextAction` instructing you to chain into the update
-flow. Invoke `/implexa:record` (it handles new + post-hoc save + update
-existing) referencing the skill the user just ran. The user's
-improvement comment becomes the starting context for the re-record
-session, which lands on Branch C (update existing via re-record).
+Then chain into the edit flow: invoke `/implexa:edit-workflow` referencing the
+agent the user just ran, with their improvement comment as the starting context.
+The edit lands as a new version of the agent, no rebuilding from scratch.
 
 ### no response (user just keeps working)
 
-If the user types anything that isn't a clear like/dislike/improve, treat
-it as "keep going" and do nothing — silence is the most common path.
+If the user types anything that isn't a clear like/dislike/improve, treat it as
+"keep going" and do nothing, silence is the most common path.
 
 ## Step 8, surface context (optional, only when relevant)
 
-If the feedback turn ended quickly (user clicked like or skipped), you
-can optionally mention ONE of these — keep to ONE line, skip entirely
-if it doesn't fit:
-- "that was the Nth time this skill ran in your org" (engagement signal)
-- "skills like this have driven $X in attributed outcomes" (if outcome
-  stats exist on the skill)
-- "want to share this with the team? use /implexa:share-this" (if it's
-  still private and seems valuable)
-- "want to fork this cross-vendor skill into your org? just say 'fork
-  this skill'" (only for cross-vendor applies the user might want to
-  customize, the model routes natural language straight to fork_org_skill)
+If the feedback turn ended quickly (user clicked like or skipped), you can
+optionally mention ONE of these, keep to ONE line, skip entirely if it doesn't
+fit:
+- "that was the Nth time this agent ran in your org" (engagement signal)
+- "agents like this have driven $X in attributed outcomes" (if outcome stats
+  exist)
+- "want to share this with the team? use /implexa:share-this" (if it's still
+  private and seems valuable)
+- "want to fork this community agent into your own? just say 'fork this agent'"
+  (only for community runs the user might want to customize)
 
 ## Edge cases
 
 | Case | Behavior |
 |---|---|
-| Both backends return 0 matches | "no skills in your library or in the open ecosystem match that. you could record one via /implexa:record, or try a more specific query." |
-| Personal returns 0, aggregator returns hits | show the cross-vendor list only. no [personal] entries. |
-| Aggregator returns 0 (min_score not crossed), personal has hits | show personal only, add a one-liner: "no cross-vendor matches above the relevance threshold for this query." |
+| Both backends return 0 matches | "no agents in yours or the community catalog match that. you could build one (just describe the job), or try a more specific query." |
+| Yours returns 0, community returns hits | show the community list only. no [yours] entries. |
+| Community returns 0 (min_score not crossed), yours has hits | show yours only, add a one-liner: "no community matches above the relevance threshold for this query." |
 | Backend timeout (>10s) on one side | proceed with whatever the other returned. don't block. |
-| User asks to apply a private skill they don't own (Forbidden from apply_org_skill) | "that skill is private to its creator. want to fork it? just say 'fork this skill' and the model will run fork_org_skill." |
-| apply_recommended_skill returns `ok: false` (skill removed, content empty, etc.) | surface the error field honestly and offer the entry's source URL as a fallback. |
-| Skill is in draft status | "that skill is in draft state, only active skills can be applied. ask the creator to activate it, or fork your own copy (just say 'fork it')." |
+| User asks to run a private agent they don't own (Forbidden) | "that agent is private to its creator. want to fork it? just say 'fork this agent'." |
+| apply_recommended_skill returns `ok: false` (agent removed, content empty) | surface the error honestly and offer the entry's source URL as a fallback. |
+| Agent is in draft status | "that agent is in draft state, only active ones can be run. ask the creator to activate it, or fork your own copy." |
 
 ## Greedy match rule
 
-If the user says "triage" and ONE entry has "triage" in its name or
-trigger phrases AND it's the only top-of-list candidate, just apply it
-directly. Don't make them pick from a list of 1. That defeats the point.
+If the user says "triage" and ONE agent has "triage" in its name or trigger
+phrases AND it's the only top-of-list candidate, just run it directly. Don't make
+them pick from a list of 1.
 
-"Top-of-list candidate" means: the personal/team library returns exactly
-one substring hit AND no cross-vendor match has a score notably higher.
-When in doubt, render the list and let the user pick.
+"Top-of-list candidate" means: the library returns exactly one substring hit AND
+no community match has a notably higher score. When in doubt, render the list and
+let the user pick.
 
 ## Notes for the model
 
-- **Pass context as invocationArgs.** If the user mentioned an account,
-  ticket id, candidate id, opportunity, domain, thread id, or any other
-  entity, include it in `invocationArgs` (for apply_org_skill) or relay
-  it as the user's working context (for apply_recommended_skill).
-  Attribution keys make outcome correlation downstream possible.
+- **Pass context as invocationArgs.** If the user mentioned an account, ticket id,
+  candidate, opportunity, domain, or thread, include it in `invocationArgs` (for
+  apply_org_skill) or relay it as the user's working context (for
+  apply_recommended_skill / apply_workflow). Attribution keys make outcome
+  correlation possible.
 
-- **Source tag is mandatory in display.** Users need to see whether a
-  match comes from their own library vs the open ecosystem. The tag
-  shapes their expectation: personal matches "just work" because their
-  org already vetted them, cross-vendor matches may need a tool the
-  current session doesn't have (apply_org_skill surfaces a
-  `requiredTools` hint for that case; apply_recommended_skill surfaces
-  the source URL on failure).
+- **Source tag is mandatory in display.** Users need to see whether a match is
+  their own vs from the community. The tag shapes their expectation: their own
+  "just work", community ones may need a tool the current session lacks.
 
-- **Don't query the recommender on browse mode (Step 6).** The recommender
-  expects a query. With no query there's nothing meaningful to rank
-  against the 252-row cross-vendor index. List the personal library
-  instead.
+- **Don't query the recommender in browse mode (Step 6).** It expects a query.
 
-- **Don't double-call backends.** One pass through Step 2 is the whole
-  search. If the user refines their query, treat that as a fresh
-  invocation and rerun Step 2 with the new query.
+- **Don't double-call backends.** One pass through Step 2 is the whole search. If
+  the user refines, treat it as a fresh invocation.
 
-- **Voice rules apply to all user-facing output.** Lowercase, tech-bro X
-  cadence, no em-dashes anywhere. Use commas, periods, colons, parens,
-  or standard hyphens.
+- **Voice rules apply to all user-facing output.** Lowercase, plain, no em-dashes
+  anywhere. Use commas, periods, colons, parens, or standard hyphens.
 
 ## What this command IS NOT
 
-- It is NOT a search box for the ENTIRE cross-vendor index without a
-  query. There's no "browse all 252 skills" mode here. For that, the
-  dashboard at https://app.implexa.ai/skills is the right surface.
+- It is NOT a search box for the ENTIRE community catalog without a query. For
+  browsing everything, the dashboard at https://app.implexa.ai/agents is the
+  right surface.
 
-- It is NOT a way to view buffered ambient matches. That's
-  `/implexa:suggest`, which reads the local pull-buffer the recommender
-  hook wrote silently as the user typed prompts.
+- It is NOT a way to view buffered ambient matches. That's `/implexa:suggest`,
+  which reads the local pull-buffer the recommender hook wrote silently as the
+  user typed.
 
-- It is NOT a skill-recording surface. For capturing a new workflow,
-  point the user at `/implexa:record`.
+- It is NOT where you build a new agent from scratch. When nothing matches and the
+  user wants something new, describe the job and build it (generate_workflow); to
+  save a job you just did by hand as a reusable agent, point them at
+  `/implexa:record`.
 
-## Why this is the final entry point
+## Why this is the entry point
 
 Three entry points, clear semantics:
 
-1. **`/implexa:run` (this one)** OR **"implexa, find me X"** OR **"do I
-   have a skill for X"** → unified recommender, both sources, ranked.
-2. **`/implexa:suggest`** → pull-buffer of ambient matches that fired
-   silently during recent prompts.
-3. **`/implexa:record`** → capture a new skill from demonstration.
+1. **`/implexa:run` (this one)** OR **"implexa, run X"** OR **"do I have an agent
+   for X"** → find + run an existing agent, yours and the community, ranked.
+2. **`/implexa:suggest`** → pull-buffer of ambient matches that fired silently
+   during recent prompts.
+3. **`/implexa:record`** → save a multi-step job you just did as a reusable agent.
 
-No competing paths. The "implexa as a verb" claim is preserved because
-"implexa, find me X" still works (Claude Code's slash-command router
-points it here). One mental model. One authoritative answer regardless
-of phrasing.
+The "implexa as a verb" claim holds: "implexa, find me X" still routes here. One
+mental model, one authoritative answer regardless of phrasing.
 
 ## Error handling
 
 | Error | Diagnosis | Tell the user |
 |---|---|---|
 | `Skill not found` from apply_org_skill | bad slug after picking | re-list with list_org_skills, retry with the correct slug. |
-| `Forbidden` from apply_org_skill | private skill not owned by the caller | "that skill is private to its creator. want to fork it? just say 'fork this skill'." |
-| `Skill is archived` / `draft` | status check failed | "that skill is in {status} state. only active skills can be applied. ask the creator to activate it, or fork it (just say 'fork it')." |
-| `skill not found in the cross-vendor index` from apply_recommended_skill | source row was removed | "that skill was removed from {source}. try a different recommendation, or browse the source directly." |
-| `skill was indexed without content` from apply_recommended_skill | source row has empty content | "no content available for that one. here's the source URL if you want to install manually: {source_url}." |
-| Both backends 0 matches | the query has nothing | "no matches in your library or the open ecosystem. try /implexa:record to capture a new workflow, or rephrase the query." |
+| `Forbidden` from apply_org_skill | private agent not owned by the caller | "that agent is private to its creator. want to fork it? just say 'fork this agent'." |
+| `Skill is archived` / `draft` | status check failed | "that agent is in {status} state. only active ones can be run. ask the creator to activate it, or fork it." |
+| `skill not found in the cross-vendor index` from apply_recommended_skill | source row removed | "that agent was removed from {source}. try a different one, or browse the source directly." |
+| `skill was indexed without content` | source row has empty content | "no content available for that one. here's the source URL if you want it manually: {source_url}." |
+| Both backends 0 matches | nothing matched | "no matches in yours or the community catalog. describe the job and I'll build it, or rephrase the query." |

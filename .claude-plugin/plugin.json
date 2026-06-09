@@ -1,7 +1,7 @@
 {
   "name": "implexa",
-  "version": "0.32.0",
-  "description": "Implexa watches how you work in Claude and surfaces the right move before you build it by hand: the best-fit skill from a 40,000+ cross-vendor index (Anthropic, Cursor, Smithery, ClawHub, Skills.sh, GitHub, and more), a verified open-source module (license-safe, provenance-checked, advisory-scanned), or a whole-job workflow such as a daily content pack, a weekly market report, or a morning build brief, each one stitched from verified skills and runnable on a schedule. It also notices the work you repeat and offers to automate it, so your routines run on their own instead of being redone by hand every day. Capture your own workflow once, share it with your team, and track which ones actually deliver. Built on the open Agent Skills standard, runs across Claude Code, Cursor, Codex, and Gemini. Free for personal use.",
+  "version": "0.33.0",
+  "description": "Implexa turns what you repeat in Claude into agents that run on their own. Describe a job in plain language and Implexa builds a ready-to-run agent, or finds the best-fit one from a 40,000+ cross-vendor catalog (Anthropic, Cursor, Smithery, ClawHub, Skills.sh, GitHub, and more), each agent runnable on a schedule: a daily content pack, a weekly market report, a morning build brief, and built on verified open-source modules (license-safe, provenance-checked, advisory-scanned). It also notices the work you do by hand and offers to turn it into an agent, so your routines run themselves instead of being redone every day. Save an agent once, share it with your team, and track which ones actually deliver. Built on the open Agent Skills standard, runs across Claude Code, Cursor, Codex, and Gemini. Free for personal use.",
   "author": {
     "name": "Implexa",
     "url": "https://implexa.ai"
@@ -10,21 +10,19 @@
   "repository": "https://github.com/Implexa-Inc/implexa-claude-plugin",
   "license": "MIT",
   "keywords": [
-    "ai-workflows",
-    "workflow-automation",
-    "scheduled-workflows",
-    "skill-recommendations",
+    "ai-agents",
+    "agent-automation",
+    "scheduled-agents",
+    "agent-recommendations",
     "verified-modules",
-    "cross-vendor-skills",
+    "cross-vendor-agents",
     "agent-skills",
-    "claude-skills",
     "claude-code",
-    "skill-graph",
+    "agent-catalog",
     "outcome-attribution",
-    "skill-sharing",
+    "agent-sharing",
     "mcp",
     "implexa",
-    "anthropic-skills",
     "automation"
   ]
 }
