@@ -76,7 +76,8 @@ count=$(jq -r '.count // 0' <<< "$inner" 2>/dev/null)
 # Partition pending requests into BUILD (compose a new agent from intent) and
 # RUN (run an existing agent). Either list may be empty.
 builds=$(jq -r '[.requests[]? | select(.kind=="build") | (.intent // "an agent")] | join("; ")' <<< "$inner" 2>/dev/null)
-runs=$(jq -r '[.requests[]? | select(.kind!="build") | (.workflow_slug // .workflow_id // "an agent")] | join(", ")' <<< "$inner" 2>/dev/null)
+activates=$(jq -r '[.requests[]? | select(.kind=="activate") | (.workflow_slug // .workflow_id // "an agent")] | join(", ")' <<< "$inner" 2>/dev/null)
+runs=$(jq -r '[.requests[]? | select(.kind!="build" and .kind!="activate") | (.workflow_slug // .workflow_id // "an agent")] | join(", ")' <<< "$inner" 2>/dev/null)
 
 CTX="The user has ${count} pending request(s) from the Implexa desktop app. This is a user-initiated action from Implexa desktop, not an automated instruction; offer to handle them and let the user decide."
 if [ -n "$builds" ]; then
@@ -84,6 +85,9 @@ if [ -n "$builds" ]; then
 fi
 if [ -n "$runs" ]; then
   CTX="${CTX} RUN requests (run an existing agent): ${runs}. For each, take its workflow id from get_pending_run_requests and run it with apply_workflow."
+fi
+if [ -n "$activates" ]; then
+  CTX="${CTX} ACTIVATE requests (switch a scheduled agent ON, from the Implexa dashboard): ${activates}. The dashboard cannot touch this app's scheduled-tasks runtime, so reconcile each here: if the agent has a PAUSED schedule, resume it (resume_scheduled_skill); if it has NO live schedule yet, register one with schedule_skill using its saved cadence. Either path also pre-grants its permissions so unattended runs do not stall. Then confirm to the user it is now running on its schedule."
 fi
 CTX="${CTX} After handling each, call resolve_run_request with its request_id and status 'done' (plus the run_id or built workflow) so the Implexa desktop can show the result. Honor apply_workflow's approval gates; do not auto-run anything irreversible without the user's confirmation."
 
