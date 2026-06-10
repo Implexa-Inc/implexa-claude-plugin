@@ -10,6 +10,29 @@ Argument: `<scheduled_skill_id>` (a UUID, passed positionally).
 
 ---
 
+## Step 0 - FIRST ACTION: open the in-flight run record (before ANYTHING else)
+
+The very first tool you call MUST be **`record_run_start`** with
+`{ scheduledSkillId: "<the uuid from the argument>" }`. Keep the returned
+`runId`.
+
+**Do NOT run any other tool before this - especially not Bash.** Do not "orient",
+do not list directories, do not check the day number, do not probe tooling. You
+already have the uuid from the argument; record the start with it, THEN resolve
+the manifest (Step 1).
+
+Why this is non-negotiable: a scheduled run executes unattended. If an early
+tool (e.g. an exploratory `find` in Bash) raises a permission prompt, there is
+no one to answer it and the run dies ("permission stream closed") - and if that
+happens before this record exists, the run leaves NO trace: not in Needs-you,
+not flagged stalled, invisible (the exact failure the founder hit on the daily
+IG reel). With the row open FIRST, even an immediate crash leaves a `running`
+row the watchdog flips to `stalled`, so the desktop buzzes and Needs-you shows
+it. Recording first is what makes a dead run visible.
+
+If `record_run_start` itself fails (offline/transient), proceed anyway and omit
+`runId` in Step 3 - never block the work on telemetry.
+
 ## Step 1 - Resolve the schedule manifest
 
 Call **`get_scheduled_skill_payload`** with `{ scheduledSkillId: "<uuid>" }`.
@@ -67,24 +90,13 @@ This run executes under the scheduled-run permission scope, which uses `defaultM
 
 The dashboard reads run state, so a `failed`/`partial` run with this reason surfaces as a visible, one-tap-fixable problem instead of an agent that appears to have never run.
 
-## Step 1.7 - Open the in-flight run record (ALWAYS, before any work)
+## Step 1.7 - Heartbeat on long runs
 
-Call **`record_run_start`** with `{ scheduledSkillId: "<uuid from step 1>" }`
-(add `orchestrationId` if Step 2 will use orchestrate_skills). Keep the returned
-`runId`.
-
-This is what makes a STALL visible: it opens a `run_state: "running"` row the
-watchdog tracks. A run that hangs (a permission prompt, a dead tool, a network
-wait) without this row leaves NO trace, and to the user silence reads as
-success - the exact failure the founder hit. With the row open, the watchdog
-flips it to `stalled`, the desktop app buzzes, and the Needs-you page shows it.
-
-On long runs (several minutes between major steps), call
-**`record_run_heartbeat`** with the same `runId` between steps so a slow-but-
-alive run is never mistaken for a stalled one.
-
-If `record_run_start` itself fails (offline, transient), continue the run
-anyway and omit runId in Step 3 - never block the actual work on telemetry.
+You already opened the in-flight run record in Step 0. On long runs (several
+minutes between major steps), call **`record_run_heartbeat`** with that `runId`
+between steps so a slow-but-alive run is never mistaken for stalled. If Step 2
+uses orchestrate_skills, you can pass its `orchestrationId` to
+`record_scheduled_run` in Step 3 for cross-table joins.
 
 ## Step 2 - Execute (branch on the payload shape)
 
@@ -206,7 +218,7 @@ Call **`record_scheduled_run`** with:
 ```jsonc
 {
   "scheduledSkillId": "<uuid from step 1>",
-  "runId":            "<the runId from record_run_start in step 1.7>",
+  "runId":            "<the runId from record_run_start in Step 0>",
   "outputMarkdown":   "<the markdown produced in step 2>",
   "status":           "completed",  // or "partial" / "failed"
   // "durationMs":     <ms wall-clock from step 1 to here, optional>
