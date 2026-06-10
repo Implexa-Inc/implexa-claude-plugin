@@ -25,7 +25,7 @@ set -o pipefail
 
 API_KEY="${IMPLEXA_API_KEY:-}"
 API_URL="${IMPLEXA_API_URL:-https://core.implexa.ai}"
-PLUGIN_VERSION="0.33.0"
+PLUGIN_VERSION="0.34.0"
 
 # Silent no-ops: missing key or deps. Never block or error the session.
 [ -z "$API_KEY" ] && exit 0
