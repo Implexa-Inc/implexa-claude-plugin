@@ -273,6 +273,26 @@ the user, don't re-ask what they want done. The agent defines its own procedure;
 follow it in order. If it needs inputs the user hasn't provided, ask for just
 those inputs.
 
+## Step 5.5, CLOSE THE RUN (required — this is what registers it)
+
+A run that produced a deliverable but never recorded itself is invisible: the
+dashboard run count does not move and the user thinks nothing happened (a real
+complaint). The instant the run finishes, before you move on, close it:
+
+1. **If you ran a whole-job agent via `apply_workflow`** (the usual path): call
+   `mcp__implexa__record_workflow_outcome` with that run's `workflow_run_id` and
+   `status: "executed"` (add an `outcome` object if you can already see the
+   result). This is what flips the attempt to executed and bumps the count. Do
+   it even on a partial/failed run — pass the honest status.
+2. **If this run came from a desktop run-request** (you got it from
+   `get_pending_run_requests`): also call `mcp__implexa__resolve_run_request`
+   with its `request_id` and `status: "done"` (and the `run_id` if you have one).
+   This clears it from the desktop AND records the run server-side. Never leave a
+   handled request pending.
+
+These two calls are cheap and mandatory. Skipping them is the single most common
+reason a run "doesn't show up." Make them the last thing you do for the run.
+
 ## Step 6, browse mode (no-query path)
 
 If the user invoked `/implexa:run` with no description, fall back to browsing
