@@ -46,7 +46,11 @@ fi
 # keeps a normal interactive Claude Code permission prompt from emailing the user.
 tp=$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null)
 if [ -n "$tp" ] && [ -f "$tp" ]; then
-  tail -n 120 "$tp" 2>/dev/null | grep -qiE 'implexa:run-scheduled|apply_workflow|mcp__implexa|mcp__plugin_implexa' || exit 0
+  # 800 lines, not 120: a stall can surface inside a SUBAGENT (e.g. a debate
+  # persona spawned via Task) long after the implexa markers scrolled past the
+  # short window - that miss is exactly how the founder watched a stalled
+  # boardroom run with no email. Extra markers cover the scheduled-run wrapper.
+  tail -n 800 "$tp" 2>/dev/null | grep -qiE 'implexa:run-scheduled|apply_workflow|mcp__implexa|mcp__plugin_implexa|get_scheduled_skill_payload|record_scheduled_run|record_run_start|orchestrate_skills' || exit 0
 else
   exit 0  # no transcript -> cannot confirm an Implexa run -> stay quiet
 fi

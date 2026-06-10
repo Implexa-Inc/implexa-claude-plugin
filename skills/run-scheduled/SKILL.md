@@ -67,6 +67,25 @@ This run executes under the scheduled-run permission scope, which uses `defaultM
 
 The dashboard reads run state, so a `failed`/`partial` run with this reason surfaces as a visible, one-tap-fixable problem instead of an agent that appears to have never run.
 
+## Step 1.7 - Open the in-flight run record (ALWAYS, before any work)
+
+Call **`record_run_start`** with `{ scheduledSkillId: "<uuid from step 1>" }`
+(add `orchestrationId` if Step 2 will use orchestrate_skills). Keep the returned
+`runId`.
+
+This is what makes a STALL visible: it opens a `run_state: "running"` row the
+watchdog tracks. A run that hangs (a permission prompt, a dead tool, a network
+wait) without this row leaves NO trace, and to the user silence reads as
+success - the exact failure the founder hit. With the row open, the watchdog
+flips it to `stalled`, the desktop app buzzes, and the Needs-you page shows it.
+
+On long runs (several minutes between major steps), call
+**`record_run_heartbeat`** with the same `runId` between steps so a slow-but-
+alive run is never mistaken for a stalled one.
+
+If `record_run_start` itself fails (offline, transient), continue the run
+anyway and omit runId in Step 3 - never block the actual work on telemetry.
+
 ## Step 2 - Execute (branch on the payload shape)
 
 The payload from Step 1 is ONE of two shapes. Check `target_type`.
@@ -187,6 +206,7 @@ Call **`record_scheduled_run`** with:
 ```jsonc
 {
   "scheduledSkillId": "<uuid from step 1>",
+  "runId":            "<the runId from record_run_start in step 1.7>",
   "outputMarkdown":   "<the markdown produced in step 2>",
   "status":           "completed",  // or "partial" / "failed"
   // "durationMs":     <ms wall-clock from step 1 to here, optional>
