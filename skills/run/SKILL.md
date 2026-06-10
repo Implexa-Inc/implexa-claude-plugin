@@ -28,10 +28,11 @@ one" pointing at a known agent), skip the merged search. Resolve and run it:
    `mcp__implexa__list_my_workflows` (their saved + generated agents) and match
    by name/slug. If they clearly mean a team/library agent, use
    `mcp__implexa__list_org_skills` with the name as `query`.
-2. **One confident match** → run it directly. For a whole-job agent (a workflow
-   artifact) use `mcp__implexa__apply_workflow` with its slug; for a library
-   agent use `mcp__implexa__apply_org_skill`. Then follow Step 5's "execute the
-   agent" rules. No list, no "searching the catalog" narration.
+2. **One confident match** → run it directly. First do the Step 4.7 preflight
+   (CLI tools / sign-ins / connectors; silent when clean). Then, for a whole-job
+   agent (a workflow artifact) use `mcp__implexa__apply_workflow` with its slug;
+   for a library agent use `mcp__implexa__apply_org_skill`. Then follow Step 5's
+   "execute the agent" rules. No list, no "searching the catalog" narration.
 3. **No match in their own/team agents** → tell them honestly in one line, then
    offer the discovery path: "I don't see an agent named X in yours or your
    team's. Want me to look in the community catalog?" Only search on a yes.
@@ -195,6 +196,48 @@ want me to run any of these? reply with a number, or "skip".
 For your/team entries, show the agent's description (or first 80 chars) in place
 of the fit_reason. For community entries, show the score and the `fit_reason`
 returned by the recommender.
+
+## Step 4.7, in-session preflight (run this before ANY agent run)
+
+The user is HERE, in a live session, so dependency problems get solved here,
+not deferred to a dashboard. Before executing a resolved agent (fast path or
+picked from the list), do a quick preflight against its definition. Keep it to
+one tool-call round when nothing is missing; never narrate a clean preflight.
+
+**1. CLI tools.** Scan the agent's steps for named toolchains (Remotion, ffmpeg,
+Whisper, yt-dlp, gdown, Playwright, ImageMagick; generated agents carry a
+"Preflight" step naming exactly what they need). Check the missing-prone ones in
+ONE Bash call (`command -v ffmpeg; command -v gdown; ...`). For anything
+missing, say so in one line and offer to install it now, using the install
+command the step itself documents (brew/npm/pipx). Install only on a yes, then
+re-check. The run proceeds once tools resolve.
+
+**2. Account sign-ins (browser work).** If the agent's steps or manifest need
+signed-in domains (Drive, GitHub, LinkedIn, ...), a terminal session cannot do
+the sign-in. Hand off to the activation card, which can:
+`open "implexa://workflows/<slug>/activate"` (the Implexa app's card has
+per-account Sign in + Verify buttons against the agents' dedicated workspace
+Chrome). Fall back to `https://app.implexa.ai/workflows/<slug>/activate` if the
+app is not installed. Tell the user to finish the sign-in there and say "done";
+then continue the run. For a SCHEDULED agent you can verify reachability
+first via `mcp__implexa__get_connection_status` (scheduledSkillId from
+`mcp__implexa__list_scheduled_skills`) and skip the handoff when everything is
+already reachable.
+
+**3. Missing MCP connectors.** If a step needs an MCP tool this session does not
+have (e.g. Chrome driving via the Claude-in-Chrome tools), name the missing
+connector in one line and where to enable it, then offer the fallback: run the
+step a different way (fetch instead of browse) or route the run through the
+Implexa app. Do not silently degrade.
+
+**4. "Activate now" said in-session.** If the user just built the agent and says
+"activate now" / "run it" instead of clicking the activation link: that is
+consent. Run the preflight above, run the agent here, and at the end mention
+once: "to run it on a schedule or from the dashboard, finish activation:
+implexa://workflows/<slug>/activate". Do not block the in-session run on
+activation state (activation gates the dashboard/schedule paths, not a live
+consented run). The exception stays: a draft/archived TEAM agent is not yours
+to run; see Edge cases.
 
 ## Step 5, run the chosen agent
 
