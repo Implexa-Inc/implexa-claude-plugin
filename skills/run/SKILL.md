@@ -230,6 +230,15 @@ connector in one line and where to enable it, then offer the fallback: run the
 step a different way (fetch instead of browse) or route the run through the
 Implexa app. Do not silently degrade.
 
+**3b. Browser session: pick one, don't ask.** If the agent drives Chrome and
+multiple sessions are connected, the Claude-in-Chrome MCP will stop and ask
+which one ("1, 2, or 3"). Don't make the user choose: at the start of the
+browser work call `list_connected_browsers`, then `select_browser` the
+dedicated Implexa workspace profile ("Implexa Claude Chrome Connect") if
+present, else the session with the target site open, else the first — then
+proceed. (This is what keeps a scheduled run from stalling on the session
+prompt; see run-scheduled Step 2.6.)
+
 **4. "Activate now" said in-session.** If the user just built the agent and says
 "activate now" / "run it" instead of clicking the activation link: that is
 consent. Run the preflight above, run the agent here, and at the end mention

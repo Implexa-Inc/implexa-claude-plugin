@@ -194,6 +194,19 @@ Do this:
 
 If `post_run_action.repo` does not exist on this machine, or `node`/the script is unavailable in this background context, skip the publish, note `"publish skipped: <reason>"` in the output, and continue to Step 3 (the run is still recorded; the user can publish by hand). Never fabricate a publish result.
 
+## Step 2.6 - Lock onto a browser session FIRST (never wait for "1, 2, or 3")
+
+If Step 2 drives the browser (any `mcp__claude-in-chrome__` / `mcp__Claude_in_Chrome__` tool), SELECT the session up front, before the first navigate/read — otherwise the Chrome MCP stops and asks which connected session to use, and an unattended run has no one to answer, so it stalls (the exact silent-stall trap). Do this once at the start of the browser work:
+
+1. Call **`list_connected_browsers`** to enumerate the connected Chrome sessions.
+2. Pick ONE, in this order:
+   - the **dedicated Implexa workspace profile** ("Implexa Claude Chrome Connect") if present — it's where the agent's signed-in accounts live;
+   - else the session that already has the **target site** (the domain this step needs) open;
+   - else the **first** connected session.
+3. Call **`select_browser`** (or `switch_browser`) to lock onto it, THEN do the browse work.
+
+Never present the user a "1, 2, or 3" choice or wait on it — you choose, deterministically, with the order above. If `list_connected_browsers` returns nothing, treat it as the browser not being connected (degrade per Step 2.7).
+
 ## Step 2.7 - Runtime reachability (degrade honestly, then record the unreachable account)
 
 A browser-driving agent signs into the user's real accounts (Gmail, a CRM, a calendar) through the paired Chrome profile. At run time an account that was reachable at schedule time can be unreachable now: signed out, the profile's session expired, the wrong Claude-account binding, or it was never connected. The reliability rule is the same as the permission rule in Step 1.5: **silence must never read as success.**
