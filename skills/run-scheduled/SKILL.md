@@ -108,6 +108,8 @@ uses orchestrate_skills, you can pass its `orchestrationId` to
 
 ## Step 2 - Execute (branch on the payload shape)
 
+**Where to write files.** Any file this run produces or needs as scratch (a draft, a render, a log, a downloaded asset, a `package.json` for a render project) MUST go under **`~/Implexa Agents/<skill_slug>/`** — create it with `mkdir -p` first. Do NOT write to `/tmp` or into a code repo: those paths trip Claude Code's working-directory gate and stall an unattended run. `~/Implexa Agents` is pre-granted, so writes there never prompt, and the user gets one tidy place for every agent's output. Read inputs from wherever they live, but write outputs only here.
+
 The payload from Step 1 is ONE of two shapes. Check `target_type`.
 
 ### Step 2A - Workflow target (`target_type === "workflow"`)
