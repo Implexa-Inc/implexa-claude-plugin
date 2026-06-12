@@ -210,7 +210,7 @@ Call **`mcp__scheduled-tasks__create_scheduled_task`** with:
 - `cron`: the `cronExpression` from Step 2 (e.g. `"55 8 * * *"`)
 - `timezone`: the `timezone` from Step 2 (e.g. `"UTC"` or the user's IANA tz)
 
-If `create_scheduled_task` returns a task ID, optionally call back into Implexa to attach it (future: `attach_claude_task_id` MCP tool, not required for v1).
+When `create_scheduled_task` returns its task id, call **`attach_claude_task_id`** with `{ scheduledSkillId: <the Step 2 uuid>, claudeTaskId: <the returned task id> }`. This lets the Implexa dashboard deep-link the routine in the Claude desktop app ("Open in Claude"). Best-effort: if the attach fails, continue — the schedule still works.
 
 If `create_scheduled_task` fails (e.g. MCP not available, permission denied), surface the error clearly and tell the user they can manually paste this prompt into a scheduling tool of their choice. Don't delete the Implexa manifest; they can manually trigger runs via `/implexa:run-scheduled <id>` until they re-register the cron.
 
@@ -221,8 +221,10 @@ Render a concise confirmation:
 ```
 ✓ Scheduled `<skillSlug>` <humanizedSchedule>.
   Output → <destination summary>
-  Manage at: app.implexa.ai/scheduled
+  Manage it: [open the routine in Claude](claude://claude.ai/claude-code-desktop/scheduled/<claudeTaskId>) · app.implexa.ai/scheduled
 ```
+
+The `claude://…/scheduled/<claudeTaskId>` link opens that routine's own page in the Claude desktop app (toggle, history, Run now). Include it only when Step 3 returned a task id; always keep the app.implexa.ai fallback beside it (the deep link is an undocumented Claude route and may change).
 
 Where `<destination summary>` is:
 - `Implexa dashboard only` (default)
