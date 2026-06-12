@@ -66,6 +66,14 @@ If `ok === false`:
 - `not found` / `not owned` → log and exit. (Should not happen in normal flow; possibly the user deleted the schedule but the cron task hasn't been canceled yet.)
 - `target skill no longer available` → log and exit. The tool already flipped the manifest to `failed`; the user will see it in /scheduled.
 
+## Step 1.3 - Honor prior feedback (the improvement loop)
+
+The payload carries `recentFeedback`: the user's answers to this agent's earlier runs (each `{ questions, answers }`). It has already been marked consumed, so use it NOW, this run:
+- Adjust how you produce this run's output to honor what the user said (they said the hook was weak → open stronger; they said too long → tighten).
+- When the feedback implies a DURABLE change to the agent (not just this run), call **`propose_workflow_revision`** with the improved steps so the agent permanently gets better. That revision surfaces in the agent's "Improved this week" card.
+
+If `recentFeedback` is empty, skip this step.
+
 ## Step 1.4 - Condition gate (only when `condition` is set)
 
 **Skip this step entirely if `condition` (and `schedule.condition`) is null/absent.** Most routines have no gate; go straight to Step 1.5.
@@ -239,9 +247,16 @@ Call **`record_scheduled_run`** with:
   // "pluginDelivery":  <the receipt object from step 2.5, ONLY when destination=slack-plugin>
   // "unreachableAccounts": [   // ONLY when Step 2.7 hit an unreachable account; omit otherwise
   //   { "kind": "account", "identifier": "rabi@implexa.ai", "reason": "not signed in to any paired profile" }
-  // ]
+  // ],
+  "feedbackQuestions": [   // 2-3 SHORT questions about THIS output, so the user can improve the agent
+    { "key": "hook_strong",  "question": "Was the hook strong enough?", "kind": "choice", "options": ["Yes", "No"] },
+    { "key": "length",       "question": "How was the length?",         "kind": "choice", "options": ["Too short", "Just right", "Too long"] },
+    { "key": "change",       "question": "Anything to change next time?", "kind": "text" }
+  ]
 }
 ```
+
+**`feedbackQuestions`** (include on every `completed`/`partial` run) is the improvement loop. Write 2-3 questions FROM the actual deliverable you just produced, so they are relevant to it (a reel asks about the hook + style; a market report asks if the top metric was the right one; a lead list asks if the targeting fit). Prefer `kind: "choice"` with 2-3 options for one-tap answering; include at most one `kind: "text"` "anything to change?" question. The user answers them on the dashboard, and their answers come back to you as `recentFeedback` on the NEXT run (Step 1.3) so the agent improves itself. Omit only when the output is purely informational with nothing worth rating.
 
 **`pluginDelivery` is REQUIRED when destination.type=`slack-plugin`** and forbidden otherwise. The backend uses it to record the slack delivery receipt on the skill_runs row.
 
