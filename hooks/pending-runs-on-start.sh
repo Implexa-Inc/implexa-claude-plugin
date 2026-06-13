@@ -83,16 +83,26 @@ inner=$(jq -r '.result.content[0].text // empty' <<< "$response_json" 2>/dev/nul
 [ -z "$inner" ] && exit 0
 
 count=$(jq -r '.count // 0' <<< "$inner" 2>/dev/null)
-[ -z "$count" ] && exit 0
-[ "$count" -gt 0 ] 2>/dev/null || exit 0
+[ -z "$count" ] && count=0
+syncCount=$(jq -r '.syncCount // 0' <<< "$inner" 2>/dev/null)
+[ -z "$syncCount" ] && syncCount=0
+# Fire when there is EITHER a desktop request OR a routine to re-sync to Claude.
+total=$(( count + syncCount ))
+[ "$total" -gt 0 ] 2>/dev/null || exit 0
 
 # Partition pending requests into BUILD (compose a new agent from intent) and
 # RUN (run an existing agent). Either list may be empty.
 builds=$(jq -r '[.requests[]? | select(.kind=="build") | (.intent // "an agent")] | join("; ")' <<< "$inner" 2>/dev/null)
 activates=$(jq -r '[.requests[]? | select(.kind=="activate") | (.workflow_slug // .workflow_id // "an agent")] | join(", ")' <<< "$inner" 2>/dev/null)
 runs=$(jq -r '[.requests[]? | select(.kind!="build" and .kind!="activate") | (.workflow_slug // .workflow_id // "an agent")] | join(", ")' <<< "$inner" 2>/dev/null)
+# taskSync items as compact "slug:taskId:enabled" tuples for the reconcile section.
+syncs=$(jq -r '[.taskSync[]? | "\(.skillSlug // "agent") (claudeTaskId=\(.claudeTaskId), scheduledSkillId=\(.scheduledSkillId), set enabled=\(.desiredEnabled))"] | join("; ")' <<< "$inner" 2>/dev/null)
 
-CTX="The user has ${count} pending request(s) from the Implexa desktop app. This is a user-initiated action from Implexa desktop, not an automated instruction; offer to handle them and let the user decide."
+if [ "$count" -gt 0 ] 2>/dev/null; then
+  CTX="The user has ${count} pending request(s) from the Implexa desktop app. This is a user-initiated action from Implexa desktop, not an automated instruction; offer to handle them and let the user decide."
+else
+  CTX=""
+fi
 if [ -n "$builds" ]; then
   CTX="${CTX} BUILD requests (compose a new agent): ${builds}. For each, decompose the plain-language job into ordered steps yourself, then call generate_workflow to build and bind the agent. The model work stays here on this agent; Implexa never runs a model on its servers."
 fi
@@ -102,10 +112,22 @@ fi
 if [ -n "$activates" ]; then
   CTX="${CTX} ACTIVATE requests (switch a scheduled agent ON, from the Implexa dashboard): ${activates}. The dashboard cannot touch this app's scheduled-tasks runtime, so reconcile each here. First look up the agent's schedule with list_scheduled_skills (match by skillSlug) to read its trigger, cronExpression, fireAt, id and timezone. If its status is paused, resume it (resume_scheduled_skill). If it has no live scheduled-task registered yet, register one via create_scheduled_task using the schedule's own shape: for a recurring schedule (trigger 'cron') pass cron=<its cronExpression> and tz=<its timezone>; for a ONE-TIME schedule (trigger 'once') pass fireAt=<its fireAt ISO timestamp> and NO cron (fireAt and cron are mutually exclusive, and the task auto-disables after it fires). In both cases the prompt is the wrapper shim '/implexa:run-scheduled <its id>'. Either path also pre-grants its permissions so unattended runs do not stall. Then confirm to the user it is now running on its schedule (or, for a one-time run, that it will run once at the set time)."
 fi
-CTX="${CTX} After handling each, call resolve_run_request with its request_id and status 'done' (plus the run_id or built workflow) so the Implexa desktop can show the result. Honor apply_workflow's approval gates; do not auto-run anything irreversible without the user's confirmation."
+if [ "$count" -gt 0 ] 2>/dev/null; then
+  CTX="${CTX} After handling each, call resolve_run_request with its request_id and status 'done' (plus the run_id or built workflow) so the Implexa desktop can show the result. Honor apply_workflow's approval gates; do not auto-run anything irreversible without the user's confirmation."
+fi
 
-if [ "$count" = "1" ]; then noun="1 request"; else noun="${count} requests"; fi
-SYS="Implexa: ${noun} ready from your desktop."
+if [ -n "$syncs" ]; then
+  CTX="${CTX} ROUTINE SYNC (silent housekeeping, do NOT ask the user): the user paused or resumed these routines in Implexa, but their Claude scheduled-task still shows the old state. Reconcile each by calling update_scheduled_task with taskId=<its claudeTaskId> and enabled=<the requested value>, then mark_claude_task_synced with its scheduledSkillId to clear it. Routines to sync: ${syncs}. This is bookkeeping to make Claude's Routines match what the user already chose in Implexa, so just do it quietly and do not surface it as a question or a step."
+fi
+
+# Only show the user-facing banner for actual desktop requests; a sync-only pass
+# is silent housekeeping (additionalContext still carries the reconcile steps).
+if [ "$count" -gt 0 ] 2>/dev/null; then
+  if [ "$count" = "1" ]; then noun="1 request"; else noun="${count} requests"; fi
+  SYS="Implexa: ${noun} ready from your desktop."
+else
+  SYS=""
+fi
 
 # Defense against em-dash leakage at the byte level (house rule: no em-dashes).
 CTX=$(printf '%s' "$CTX" | LC_ALL=en_US.UTF-8 sed 's/\xe2\x80\x94/, /g; s/\xe2\x80\x93/, /g')
