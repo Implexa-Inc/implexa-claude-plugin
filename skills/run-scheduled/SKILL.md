@@ -70,6 +70,7 @@ If `ok === false`:
 
 The payload carries `recentFeedback`: the user's answers to this agent's earlier runs (each `{ questions, answers }`). It has already been marked consumed, so use it NOW, this run:
 - Adjust how you produce this run's output to honor what the user said (they said the hook was weak → open stronger; they said too long → tighten).
+- `answers` may include a `_freeform` key: the user's own free-text comment, written outside your pre-filled questions. Treat it as the highest-signal feedback — it is what they chose to say unprompted. Honor it even when it has nothing to do with the questions you asked.
 - When the feedback implies a DURABLE change to the agent (not just this run), call **`propose_workflow_revision`** with the improved steps so the agent permanently gets better. That revision surfaces in the agent's "Improved this week" card.
 
 If `recentFeedback` is empty, skip this step.
