@@ -6,7 +6,7 @@ description: 'Internal callback agent invoked by Claude Code''s scheduled-tasks 
 
 Invoked by Claude Code's `scheduled-tasks` runtime when a recurring Implexa schedule fires. The user does NOT invoke this directly. It exists so the registered cron prompt is a single-token slash command (reliable for Claude) instead of a multi-step natural-language instruction.
 
-Argument: `<scheduled_skill_id>` (a UUID, passed positionally).
+Argument: `<scheduled_skill_id>` (a UUID, passed positionally). An optional second token `--on-demand` marks an EXPLICIT on-demand fire (the user triggered "run now" from the dashboard / phone / Telegram via a one-time task), as opposed to the recurring cron firing on its own. It changes one thing in Step 1 (paused agents run).
 
 ---
 
@@ -36,6 +36,8 @@ If `record_run_start` itself fails (offline/transient), proceed anyway and omit
 ## Step 1 - Resolve the schedule manifest
 
 Call **`get_scheduled_skill_payload`** with `{ scheduledSkillId: "<uuid>" }`.
+
+**If you were invoked with `--on-demand`**, call it with `{ scheduledSkillId: "<uuid>", allowPaused: true }` instead. An explicit on-demand fire must run the agent even if its routine is PAUSED — pause only stops the automatic cron, never an explicit "run now". This does NOT change the agent's status: a paused agent runs this once and stays paused (the one-time task auto-disables; you do not resume or re-pause anything). Without `--on-demand`, a paused agent returns `status: "paused"` below and you exit quietly — a paused routine's cron must never auto-run.
 
 The tool returns the target agent's slug, name, and full SKILL.md `content`, plus the destination metadata:
 
