@@ -99,12 +99,21 @@ This run executes under the scheduled-run permission scope, which uses `defaultM
 
 The dashboard reads run state, so a `failed`/`partial` run with this reason surfaces as a visible, one-tap-fixable problem instead of an agent that appears to have never run.
 
-## Step 1.7 - Heartbeat on long runs
+## Step 1.7 - Heartbeat + step trace
 
-You already opened the in-flight run record in Step 0. On long runs (several
-minutes between major steps), call **`record_run_heartbeat`** with that `runId`
-between steps so a slow-but-alive run is never mistaken for stalled. If Step 2
-uses orchestrate_skills, you can pass its `orchestrationId` to
+You already opened the in-flight run record in Step 0. At **each major step
+boundary** call **`record_run_heartbeat`** with that `runId` AND a short `note`
+of what you just did or are about to do (e.g. `note: "step 3/7: submitting
+sitemap to Search Console", step: "3/7"`). Two reasons:
+
+1. It keeps a slow-but-alive run from being mistaken for stalled (the original purpose).
+2. The `note` builds the run's **live step trace**, shown on the run page. This is
+   what makes a stall legible: if this agent hangs, the user (and a phone watching
+   the run) sees exactly which step it died on instead of a bare "stalled" — the
+   gap the founder hit when a run stuck and nothing could say where.
+
+So: heartbeat-with-note liberally, at least once per real step. Cheap and free.
+If Step 2 uses orchestrate_skills, you can pass its `orchestrationId` to
 `record_scheduled_run` in Step 3 for cross-table joins.
 
 ## Step 2 - Execute (branch on the payload shape)
