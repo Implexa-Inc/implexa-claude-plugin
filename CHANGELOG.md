@@ -12,6 +12,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.36.0] - 2026-06-19
+
+App-first cleanup. The Implexa app is the control surface; Claude runs agents in the background. The Revenoid-era skill-graph slash commands are retired in favor of the app + the run-based recommendation engine, and the ambient "watch what you type" hooks are removed.
+
+### Removed
+
+- **Retired slash-command skills.** Deleted `skills/record`, `skills/my-skills`, `skills/suggest`, `skills/share-this`, `skills/run`, `skills/schedule`, and `skills/edit-workflow`. Building, browsing, running, scheduling, approving, and sharing agents now happen in the Implexa app or via natural-language asks that route through the MCP tools. The user-typed surface is now just `/implexa:help`.
+- **Ambient hooks.** Deleted `hooks/recommend-on-prompt.sh` (the ambient skill recommender) and `hooks/implexa-event.sh` (the demo-capture event handler), and removed their entries from `hooks/hooks.json`. The now-empty `PostToolUse` and `Stop` hook groups (and the `implexa-event` entry under `UserPromptSubmit`) are pruned.
+
+### Changed
+
+- **Kept hooks unchanged.** `pending-runs-on-start.sh` (queue drain on `SessionStart` + `UserPromptSubmit`) and `permission-stall.sh` (`Notification` + `PermissionRequest`) remain registered.
+- **`/implexa:run-scheduled` is unchanged behaviorally** (still the runtime callback for live schedules); only stale `/implexa:schedule` references in its copy were repointed to the Implexa app.
+- **Installer migration.** `install-user-hooks.sh` no longer installs the ambient-capture or recommender launchers; on upgrade it now PRUNES the legacy `implexa-hook.sh` / `implexa-recommend.sh` entries from existing users' `~/.claude/settings.json` and removes the orphaned launcher files, so no install references deleted hook files. `uninstall.sh` cleans both legacy launchers too.
+- **App-first copy.** Rewrote the plugin `description` and `keywords` (dropped `agent-sharing`, `outcome-attribution`), the `/implexa:help` page, and the README to the app-first model. The `skills/` directory name, the `run-scheduled` command name, and the MCP tool names are intentionally unchanged (Claude Code primitives + live-cron compatibility).
+
 ## [0.35.12] - 2026-06-19
 
 Scheduled runs now propose next agents, matching the on-demand path.

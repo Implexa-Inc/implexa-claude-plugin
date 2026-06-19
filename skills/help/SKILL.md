@@ -1,11 +1,11 @@
 ---
-description: 'Show the 7 Implexa commands + your current credit balance + plan tier. Manual-only (user must explicitly type /implexa:help). Absorbs the old /implexa:credits utility; the balance is now shown inline at the top of this page.'
+description: 'Show how Implexa works (app-first) + your current credit balance + plan tier. Manual-only (user must explicitly type /implexa:help). Absorbs the old /implexa:credits utility; the balance is shown inline at the top of this page.'
 disable-model-invocation: true
 ---
 
-# Implexa: what can I do?
+# Implexa: how it works
 
-When the user invokes `/implexa:help`, return the catalogue below VERBATIM as a markdown reply, with one substitution: the credit balance block at the top is populated from a live `get_credits` call. Don't paraphrase the rest, don't expand, don't add your own commentary. Just print this page.
+When the user invokes `/implexa:help`, return the page below as a markdown reply, with one substitution: the credit balance block at the top is populated from a live `get_credits` call. Don't paraphrase the rest, don't expand, don't add your own commentary. Just print this page.
 
 ## Step 1 - Fetch the credit balance (free, no-side-effect)
 
@@ -25,7 +25,7 @@ Call **`get_credits`**. The response shape:
 }
 ```
 
-If the call errors (key missing / revoked / network), still render the catalogue but replace the balance block with: `> ⚠️ Couldn't reach Implexa. Re-run the installer at https://implexa.ai/install if this persists.`
+If the call errors (key missing / revoked / network), still render the page but replace the balance block with: `> ⚠️ Couldn't reach Implexa. Re-run the installer at https://implexa.ai/install if this persists.`
 
 ## Step 2 - Render the page
 
@@ -41,61 +41,54 @@ Use this template, substituting the balance values from Step 1:
 If `low_balance: true`, append: `⚠️ Running low. Top up at <billing_url>.`
 If `is_admin_bridge: true` OR `is_enterprise: true`, replace the credits line with: `**Enterprise account** - org-level usage at https://admin.implexa.ai/analytics/usage-tool.`
 
-Then below the balance, render this catalogue verbatim:
+Then below the balance, render this page verbatim:
 
 ```
-### ⚡ The 7 commands
+### 🎛️ Implexa is app-first
 
-| command | what it does |
+You build, run, approve, and schedule your agents in the **Implexa app** — Claude runs them in the background.
+
+| where | what you do there |
 |---|---|
-| `/implexa:suggest [for X]` | Find agents: active search if you give a query, passive buffer pull if you don't |
-| `/implexa:run <what you want>` | Find and run the best-fit agent: leads with a whole-job agent when one matches, else the best agent from your library or the community agent catalog |
-| `/implexa:record` | Save a multi-step job you just did as a reusable agent (schedulable, shareable) |
-| `/implexa:my-skills [scope]` | Browse your agents: `personal` (default), `team`, `public`, or `workflows` (the whole-job agents you saved) |
-| `/implexa:schedule <thing> <cadence>` | Put an agent on autopilot: dashboard, email, or Slack delivery |
-| `/implexa:share-this` | Share an agent (team/public install link) or publish a whole-job agent to the community for karma |
-| `/implexa:help` | This page |
+| **app.implexa.ai** | Build an agent from a plain-language description, browse your library + the community catalog, run an agent on demand, put it on a schedule, and approve runs that paused for your sign-off |
+| **Here, in Claude** | Just ask in natural language. The Implexa MCP tools are exposed to the model, so most asks route without a slash command |
+| **In the background** | Scheduled and on-demand agents fire on their own and deliver to your dashboard, email, or Slack — no session needed |
 
 ### 🗣️ Or just ask in natural language
 
-The 7 commands cover the high-traffic verbs. For anything else, just ask. Implexa's MCP tools are exposed to the model and most common asks route correctly without a slash. Examples:
+There's no command to memorize. Describe what you want and Implexa's MCP tools handle it. Examples:
 
-- `Fork the daily-prospecting agent into my org`  →  forks via `fork_org_skill`
-- `Give me my morning brief`  →  orchestrates your morning chain via `orchestrate_skills`
+- `Build me an agent that drafts a weekly market report`  →  composes a new agent via `generate_workflow`
+- `Find me an agent for cold outreach`  →  searches your library + the community catalog
+- `Run my morning brief`  →  runs it via `run_agent_now` / `orchestrate_skills`
+- `Schedule the prospecting agent every weekday at 9am`  →  registers it via `schedule_skill`
 - `Which of my agents drove the most revenue?`  →  reads attribution via `attribute_skill_outcome`
-- `Publish my X agent to ClawHub`  →  uses the clawhub CLI + `get_skill_content`
 
-### 🎬 The killer flow
+### ⚙️ The agent lifecycle
 
-Two ways to get a reusable, schedulable whole-job agent, a full job run end to end:
-
-- **Prompt it**: describe a recurring job and Implexa builds the agent from verified components (`/implexa:run`, or just ask).
-- **Capture it**: do the job once and say "save this as an agent"; Implexa reconstructs the chain (`/implexa:record`).
-
-Either way you get an agent you can **run on demand**, put on a **schedule** (it delivers to your inbox on its own), browse anytime (`/implexa:my-skills workflows`), and **share** with the community for karma, and every run hardens it for the next person. Focused single-task agents also run in Claude Code, Cursor, Codex, Gemini CLI, and 30+ agents.
+1. **Build it** — describe a recurring job and Implexa builds a ready-to-run agent from verified components, or finds the best-fit one in the catalog.
+2. **Run it** — on demand, or put it on a **schedule** so it runs itself and delivers to your inbox.
+3. **Approve it** — when an agent pauses before a consequential step (publishing, sending, spending), it holds for your one-tap approval in the app.
+4. **It improves** — every run hardens the agent for the next one. Focused single-task agents also run in Claude Code, Cursor, Codex, Gemini CLI, and 30+ agents.
 
 ### 📦 What's free vs. what costs credits
 
-**Free forever**: `list_org_skills`, `apply_org_skill`, `get_credits`, viewing share previews, `/implexa:help`, `/implexa:suggest`, `/implexa:my-skills`.
+**Free forever**: browsing your library, running agents you own, `get_credits`, `/implexa:help`.
 
-**Costs credits**: saving an agent (`/implexa:record`), share-link mint (`/implexa:share-this`), external-data lookups (Fiber / Coresignal / Apollo), Haiku draft passes.
+**Costs credits**: building/saving an agent, external-data lookups (Fiber / Coresignal / Apollo), Haiku draft passes.
 
 ### 🔗 Useful links
 
-- Dashboard: https://app.implexa.ai
+- App (build, run, approve, schedule): https://app.implexa.ai
 - Settings + API keys: https://app.implexa.ai/settings/api-keys
 - Billing: https://admin.implexa.ai/p2p/billing
 - Install / reinstall: https://implexa.ai/install
 ```
 
-## Step 3 - Filter (optional)
+## Step 3 - Notes for the model
 
-If the user passed text after `/implexa:help` (in `$ARGUMENTS`) and it matches a command name (e.g. `record`, `share`, `schedule`), narrow the table to just that row and skip the natural-language + killer-flow sections. Otherwise show everything.
-
-## Notes for the model
-
-- This page replaces both the old `/implexa:help` (the long 18-command catalogue) and the old `/implexa:credits` (credit balance display). Both are now folded in.
+- This page replaces both the old `/implexa:help` (the command catalogue) and the old `/implexa:credits` (credit balance display). Both are folded in.
+- Implexa is now **app-first**: the slash-command surface was retired in favor of the Implexa app + natural-language asks. `/implexa:help` is the only command a user types directly; everything else lives in the app or routes through the MCP tools by just asking.
 - Keep the balance display under 4 lines. Users want a number, not a tutorial.
 - For `low_balance: true`, lead with the warning so users adjust before kicking off a credit-heavy agent run.
 - For admin-bridged enterprise accounts, don't echo the placeholder 999999 credit count. Just say "enterprise" and point at the org analytics URL.
-- The natural-language fallback section is intentional voice. Users have memorized the old 18 commands; this resets the mental model to "ask, don't memorize."

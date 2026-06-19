@@ -8,7 +8,8 @@
 #   curl -fsSL https://raw.githubusercontent.com/Implexa-Inc/implexa-claude-plugin/main/scripts/uninstall.sh | bash
 #
 # What it does (idempotent — safe to re-run, exits 0 even when nothing's there):
-#   1. Removes ~/.claude/implexa.env and ~/.claude/implexa-hook.sh
+#   1. Removes ~/.claude/implexa.env and the legacy launchers
+#      (~/.claude/implexa-hook.sh, ~/.claude/implexa-recommend.sh)
 #   2. Removes the launchctl env vars (the macOS-wide source that survives
 #      shell `unset` and re-leaks into new Terminal tabs)
 #   3. Strips Implexa hooks from ~/.claude/settings.json (preserves other hooks)
@@ -33,6 +34,7 @@ set -e
 
 CLAUDE_DIR="$HOME/.claude"
 LAUNCHER="$CLAUDE_DIR/implexa-hook.sh"
+RECOMMEND_LAUNCHER="$CLAUDE_DIR/implexa-recommend.sh"
 CONFIG="$CLAUDE_DIR/implexa.env"
 SETTINGS="$CLAUDE_DIR/settings.json"
 DESKTOP_CFG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
@@ -65,12 +67,14 @@ else
   ok "$CONFIG — already absent"
 fi
 
-if [ -f "$LAUNCHER" ]; then
-  rm -f "$LAUNCHER"
-  ok "Removed $LAUNCHER"
-else
-  ok "$LAUNCHER — already absent"
-fi
+for _legacy in "$LAUNCHER" "$RECOMMEND_LAUNCHER"; do
+  if [ -f "$_legacy" ]; then
+    rm -f "$_legacy"
+    ok "Removed $_legacy"
+  else
+    ok "$_legacy — already absent"
+  fi
+done
 
 # ─── 2. Clear launchctl env vars ───────────────────────────────────────
 # This is the macOS-wide leak source: the install script set these so GUI
@@ -90,16 +94,17 @@ if [[ "$OSTYPE" == "darwin"* ]] && command -v launchctl >/dev/null 2>&1; then
 fi
 
 # ─── 3. Strip Implexa hooks from ~/.claude/settings.json ──────────────
-# Removes any hook entries whose command references implexa-hook.sh, then
-# tidies up empty matcher groups + empty hook arrays. Preserves all other
-# hooks (Revenoid, custom user hooks, etc.).
+# Removes any hook entries whose command references the legacy Implexa
+# launchers (implexa-hook.sh / implexa-recommend.sh), then tidies up empty
+# matcher groups + empty hook arrays. Preserves all other hooks (Revenoid,
+# custom user hooks, etc.).
 if [ -f "$SETTINGS" ] && command -v jq >/dev/null 2>&1; then
   TMP="$SETTINGS.tmp.$$"
   if jq '
     if .hooks then
       .hooks |= with_entries(
         .value |= map(
-          .hooks |= map(select((.command // "") | test("implexa-hook.sh") | not))
+          .hooks |= map(select((.command // "") | test("implexa-hook.sh|implexa-recommend.sh") | not))
         )
         | .value |= map(select(.hooks | length > 0))
       )
@@ -110,11 +115,11 @@ if [ -f "$SETTINGS" ] && command -v jq >/dev/null 2>&1; then
     ok "Removed Implexa hooks from $SETTINGS"
   else
     rm -f "$TMP"
-    warn "Could not patch $SETTINGS automatically — open it and remove any 'implexa-hook.sh' hook entries manually."
+    warn "Could not patch $SETTINGS automatically — open it and remove any 'implexa-hook.sh' / 'implexa-recommend.sh' hook entries manually."
   fi
 elif [ -f "$SETTINGS" ]; then
   warn "jq not installed; can't clean hook entries from $SETTINGS automatically."
-  echo "   To remove manually: open $SETTINGS and delete any hook entries referencing 'implexa-hook.sh'."
+  echo "   To remove manually: open $SETTINGS and delete any hook entries referencing 'implexa-hook.sh' or 'implexa-recommend.sh'."
 fi
 
 # ─── 4. Strip Implexa MCP server from claude_desktop_config.json ──────

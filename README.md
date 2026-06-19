@@ -1,6 +1,6 @@
-# Implexa — The skill graph for AI work.
+# Implexa — Agents that run on their own.
 
-> **Demonstrate any workflow once. Capture decision traces. Share with your team. Measure what actually worked. Compatible with the [agentskills.io](https://agentskills.io) open standard — your skills run in Claude Code, Cursor, Gemini CLI, and 30+ more agents.**
+> **Build, run, and approve agents in the Implexa app. Claude runs them in the background — on demand or on a schedule. Compatible with the [agentskills.io](https://agentskills.io) open standard — your agents run in Claude Code, Cursor, Gemini CLI, and 30+ more agents.**
 
 [![Built on agentskills.io](https://img.shields.io/badge/Built%20on-agentskills.io-22c55e?style=flat-square)](https://agentskills.io)
 [![MIT plugin](https://img.shields.io/badge/Plugin-MIT-blue?style=flat-square)](https://github.com/Implexa-Inc/implexa-claude-plugin/blob/main/LICENSE)
@@ -14,18 +14,20 @@ One paste, ~30 seconds. Browser opens for sign-up / sign-in, you approve, termin
 
 Free forever. No credit card. MIT-licensed plugin · hosted service.
 
-[**implexa.ai**](https://implexa.ai) · [Public skills](https://app.implexa.ai/skills) · [Dashboard](https://app.implexa.ai) · [Skill format docs](https://implexa.ai/claude-skills)
+[**implexa.ai**](https://implexa.ai) · [Public agents](https://app.implexa.ai/skills) · [App](https://app.implexa.ai) · [Agent format docs](https://implexa.ai/claude-skills)
 
 ---
 
 ## What it does
 
-`/implexa:record` is the killer feature. Demonstrate any workflow once. Implexa captures every tool call + conversation turn, runs a structured Haiku-powered interview to lock the intent, and emits a **6-component skill** (intent + inputs + procedure + decision points + output contract + outcome signal) that's:
+Implexa is **app-first**: you build, run, approve, and schedule your agents in the [Implexa app](https://app.implexa.ai), and Claude runs them in the background.
 
-- **Replayable** — `/implexa:run "the prospecting one"` fuzzy-matches your library and re-executes
+Describe a recurring job in plain language and Implexa builds a ready-to-run **agent** — or finds the best-fit one from a 40,000+ cross-vendor catalog (Anthropic, Cursor, Smithery, ClawHub, Skills.sh, GitHub, and more), each built on verified open-source modules (license-safe, provenance-checked, advisory-scanned). Every agent is:
+
+- **Runnable** — on demand from the app, or on a schedule that delivers to your dashboard, email, or Slack
+- **Approvable** — when an agent pauses before a consequential step (publish, send, spend), it holds for your one-tap approval
 - **Measurable** — outcomes attribute back via last-touch within a 30-day window
-- **Portable** — works across Claude Code CLI, Claude Code Desktop, Cowork, and Chat
-- **Shareable** — team-gated (same email domain) or public links; public shares unlock Founding Creator status
+- **Portable** — works across Claude Code CLI, Claude Code Desktop, Cowork, and Chat, plus Cursor, Codex, Gemini CLI, and 30+ agents
 
 ---
 
@@ -53,87 +55,71 @@ Verify the connection:
 /implexa:help
 ```
 
-You should see the 7 commands + your current credit balance + plan tier.
+You should see how Implexa works + your current credit balance + plan tier.
 
-### 3. Record your first skill
+### 3. Build your first agent
 
-```
-/implexa:record
-```
-
-Tell Claude what you're about to demonstrate, then do your work normally. Implexa watches in the background. When you're done, it asks 2–4 questions to fill in gaps, then saves the skill. Total time: ~3 minutes.
-
-### 4. Re-run anywhere
+Open the app at [app.implexa.ai](https://app.implexa.ai) and describe a recurring job — or just ask Claude in natural language:
 
 ```
-/implexa:run "the X one"
+Build me an agent that drafts a weekly market report
 ```
 
-Fuzzy match against your library. Claude picks the right skill and applies it with your current context.
+Implexa composes the agent from verified components. From the app you can run it on demand, put it on a schedule, and approve runs that pause for your sign-off.
+
+### 4. Run it anywhere
+
+Run on demand or on a schedule; results land on your dashboard (and Slack/email if configured). Scheduled and on-demand runs fire in the background — no session needs to be open.
 
 ---
 
-## The Skill Graph flywheel
+## The agent catalog flywheel
 
-Every team has a few power users with integrations already wired up (HubSpot, Salesforce, Linear, GitHub, Apollo, Coresignal, etc.). Implexa turns their expertise into portable skills the rest of the org can invoke.
+Every team has a few power users with integrations already wired up (HubSpot, Salesforce, Linear, GitHub, Apollo, Coresignal, etc.). Implexa turns their expertise into portable agents the rest of the org can run.
 
 ```
 1. Power user connects tools to Claude
    ↓
-2. They record a skill that uses those tools
+2. They build an agent that uses those tools
    ↓
-3. Implexa captures the tool chain in the skill
+3. Implexa captures the tool chain in the agent
    ↓
-4. A teammate runs the skill via /implexa:run
+4. A teammate runs the agent from the app
    ↓
 5. If the teammate is missing a required tool, Implexa surfaces an install hint
    ↓
-6. They install. Run the skill. Get the outcome.
+6. They install. Run the agent. Get the outcome.
 ```
 
-Everyone in the org now has the power user's stack — without having to discover, evaluate, and learn each integration. Power users get rewarded with **Founding Creator** status: unlimited captures + a free Pro seat for life.
+Everyone in the org now has the power user's stack — without having to discover, evaluate, and learn each integration. Power users get rewarded with **Founding Creator** status: unlimited builds + a free Pro seat for life.
 
 ---
 
 ## What's in the plugin
 
-### The 7 visible commands (0.16.0+)
+The Implexa app is the control surface. The Claude plugin is the thin background runtime that lets Claude run your agents and stay in sync with the app. It ships:
 
-| Skill | What it does |
+| Component | What it does |
 |---|---|
-| `/implexa:suggest [for X]` | Find skills — active search if you give a query, passive buffer pull if you don't |
-| `/implexa:run <skill or prompt>` | Find + apply the best-fit skill from your library OR the cross-vendor graph |
-| `/implexa:record` | Capture a workflow as a skill — new from demo, post-hoc save, or update existing via re-record |
-| `/implexa:my-skills [scope]` | Browse libraries — `personal` (default), `team`, `org`, `public` (Playbooks + cross-org) |
-| `/implexa:schedule <skill> <cadence>` | Schedule any skill to run on a recurrence — dashboard or Slack delivery |
-| `/implexa:share-this` | Generate a share link — team-gated (your domain) or public (anywhere) |
-| `/implexa:help` | This list + your current credit balance + plan tier |
+| `/implexa:help` | How Implexa works + your current credit balance + plan tier (the only user-typed command) |
+| `/implexa:run-scheduled` | Internal callback fired by Claude Code's scheduled-tasks runtime when a scheduled agent runs — not user-invocable |
+| Session hooks | Drain pending on-demand run requests at session start, and keep unattended runs from stalling on a permission prompt |
+| MCP wiring | Exposes the Implexa MCP tools to the model so natural-language asks ("build me an agent for X", "run my morning brief") route correctly |
 
-Plus one internal: `/implexa:run-scheduled` (callback fired by Claude Code's scheduled-tasks runtime — not user-invocable).
-
-### Why only 7?
-
-We consolidated from 20 commands (0.15.0) to 7 (0.16.0) because the long tail (fork, morning brief, skill-roi, clawhub publish, get-me-started, setup-hooks, etc.) is covered better by natural-language invocation. The MCP tools that powered the old commands are all still exposed — the model routes asks like `"give me my morning brief"`, `"fork the X skill"`, `"publish my Y to ClawHub"`, `"show me skill ROI"` straight to the underlying tool. No memorization needed.
-
-The old commands that merged into survivors:
-- `/implexa:save-this` + `/implexa:update-skill` → folded into `/implexa:record` (three entry intents in one flow)
-- `/implexa:org-skills` + `/implexa:playbooks` → folded into `/implexa:my-skills` via the `scope` parameter
-- `/implexa:credits` → folded into `/implexa:help` (balance now shown inline)
+Everything else — building, browsing, running, scheduling, approving, and sharing agents — lives in the [Implexa app](https://app.implexa.ai) or routes through the MCP tools when you ask in natural language. There's no slash-command surface to memorize.
 
 ---
 
 ## Under the hood
 
-- **~30 MCP tools** — Skill Graph (11), external data fetching (14: Fiber AI + Coresignal + Apollo), `draft_message`, `revoke_share_link`, `get_credits`
-- **Three capture surfaces** during recording:
-  - Every MCP tool call (auto, via `PostToolUse` hook)
-  - Non-tool actions you log via `record_demo_note` (manual)
-  - Full host-side conversation transcript (via `UserPromptSubmit` + `Stop` hooks)
-- **6-component skill structure** — intent, inputs, procedure, decision points, output contract, outcome signal — generated by Haiku from the captured trace + your interview answers
+- **~30 MCP tools** — agent catalog + recommender, external data fetching (Fiber AI + Coresignal + Apollo), `draft_message`, `revoke_share_link`, `get_credits`, and the scheduled-run + propose-next-agents engine
+- **6-component agent structure** — intent, inputs, procedure, decision points, output contract, outcome signal — generated by Haiku from the agent's source and your description
+- **Background execution** — scheduled and on-demand agents fire via Claude Code's scheduled-tasks runtime through the `/implexa:run-scheduled` callback; output is persisted and delivered to dashboard / Slack / email
+- **Approval gates** — an agent that reaches a consequential or expensive step holds the run for one-tap human approval instead of guessing
+- **Self-improvement loop** — each run collects lightweight feedback that feeds the next run, and a successful run proposes the next 1–3 agents worth building
 - **Domain-gated sharing** — team links only let users on your email domain install
 - **Outcome attribution** — last-touch within a 30-day window from CRM/ATS/calendar events
-- **Runtime hint propagation** — `apply_org_skill` returns the skill's required tool chain so consumers get a clear "install this integration" hint if a tool the skill needs isn't available in their session
-- **Routine portability** — skills that use Claude Code's `RemoteTrigger` to set up daily schedules carry the cron + prompt spec; forkers get the schedule wired automatically (no manual `/schedule` step)
+- **Runtime hint propagation** — applying an agent returns its required tool chain so consumers get a clear "install this integration" hint if a tool the agent needs isn't available
 - **PII scrubbing** — input + output passes through a dedicated scrubber before LLM calls and persistence
 - **Renders wherever the LLM lives** — Claude Code, Claude Desktop, Cowork, Claude chat (via Custom Connector), Cursor, any MCP client
 
@@ -172,10 +158,10 @@ Idempotent. Reverses everything the installer set up (config files, hooks, MCP w
 ## Tech under the hood
 
 - **MCP transport**: Streamable HTTP
-- **Skill authoring**: Anthropic SDK (Claude Haiku for interview question generation + skill synthesis)
+- **Agent authoring**: Anthropic SDK (Claude Haiku for agent synthesis)
 - **Backend**: Node.js + Express + Supabase (Postgres + Auth + RLS + Realtime)
 - **External data**: Fiber AI, Coresignal, Apollo
-- **Hooks**: bash-based event handler at `~/.claude/implexa-hook.sh`, sourced from `~/.claude/implexa.env`
+- **Hooks**: plugin-packaged background hooks (queue drain on session start, permission-stall safety), sourced from `~/.claude/implexa.env`
 - **Plugin distribution**: marketplace clone to `~/.claude/plugins/marketplaces/implexa/`, copied to versioned cache path
 - **Auth**: RFC 8628-style device-flow with 10-min single-use tokens; backend mints fresh API keys on approval
 
@@ -183,9 +169,9 @@ Idempotent. Reverses everything the installer set up (config files, hooks, MCP w
 
 ## Pricing
 
-- **Free forever** — 5 skill captures / month, unlimited skill runs, public sharing
-- **Founding Creator** (free perk) — share 1 public skill, unlock unlimited captures + a free Pro seat for life
-- **Pro** — $19/mo or $190/year — unlimited captures, team library, audit log, SSO
+- **Free forever** — 5 agent builds / month, unlimited agent runs, public sharing
+- **Founding Creator** (free perk) — share 1 public agent, unlock unlimited builds + a free Pro seat for life
+- **Pro** — $19/mo or $190/year — unlimited builds, team library, audit log, SSO
 
 ---
 
@@ -193,12 +179,11 @@ Idempotent. Reverses everything the installer set up (config files, hooks, MCP w
 
 | Component | Status | Why |
 |---|---|---|
-| This plugin (`implexa-claude-plugin`) | **MIT licensed** | The plugin runs on your machine. We want anyone to be able to audit exactly what it captures + sends to our backend. |
+| This plugin (`implexa-claude-plugin`) | **MIT licensed** | The plugin runs on your machine. We want anyone to be able to audit exactly what it does + sends to our backend. |
 | Install scripts (`install.sh`, `uninstall.sh`) | **MIT licensed** | Same reason — they run on your machine. |
-| `~/.claude/implexa-hook.sh` (the hook launcher) | **MIT licensed** | Same reason. |
-| Backend API (`core.implexa.ai`) | Hosted SaaS | Receives skill captures, MCP requests, attribution events. Closed source. Standard SaaS model. |
-| Dashboard (`app.implexa.ai`) | Hosted SaaS | The web UI for browsing + sharing skills. Source is currently visible on GitHub but not formally licensed. |
-| Skill Graph data | Hosted | Your skills live in our database. RLS isolates per-org. Export available via `/api/v2/skills` for compliance / portability. |
+| Backend API (`core.implexa.ai`) | Hosted SaaS | Receives agent definitions, MCP requests, attribution events. Closed source. Standard SaaS model. |
+| Dashboard (`app.implexa.ai`) | Hosted SaaS | The web UI for building + running + sharing agents. Source is currently visible on GitHub but not formally licensed. |
+| Agent catalog data | Hosted | Your agents live in our database. RLS isolates per-org. Export available via `/api/v2/skills` for compliance / portability. |
 
 We follow the same model as Stripe CLI, Supabase CLI, and fly.io — open the client (the thing on your laptop) so it's auditable, run the service (the thing that holds your data) as a managed SaaS.
 
@@ -211,6 +196,6 @@ We follow the same model as Stripe CLI, Supabase CLI, and fly.io — open the cl
 ## Links
 
 - 🌐 [implexa.ai](https://implexa.ai) — marketing site
-- 🎯 [app.implexa.ai/skills](https://app.implexa.ai/skills) — public skills directory
+- 🎯 [app.implexa.ai/skills](https://app.implexa.ai/skills) — public agents directory
 - 📊 [app.implexa.ai/install](https://app.implexa.ai/install) — full install guide (logged-in)
 - 💬 [hello@implexa.ai](mailto:hello@implexa.ai) — questions, feedback, bug reports

@@ -1,5 +1,5 @@
 ---
-description: 'Internal callback agent invoked by Claude Code''s scheduled-tasks runtime when a recurring Implexa schedule fires. Use ONLY when Claude is dispatched via a scheduled task with a prompt like "/implexa:run-scheduled <uuid>" - humans should not invoke this directly. THE Implexa scheduler execution path - resolves the manifest, executes the underlying agent, persists output + delivers to Slack/dashboard. Pairs with /implexa:schedule (registration) and forms the callback half of the scheduler primitive.'
+description: 'Internal callback agent invoked by Claude Code''s scheduled-tasks runtime when a recurring Implexa schedule fires. Use ONLY when Claude is dispatched via a scheduled task with a prompt like "/implexa:run-scheduled <uuid>" - humans should not invoke this directly. THE Implexa scheduler execution path - resolves the manifest, executes the underlying agent, persists output + delivers to Slack/dashboard. Pairs with scheduling registration in the Implexa app and forms the callback half of the scheduler primitive.'
 ---
 
 # Run a scheduled agent (internal callback)
@@ -91,12 +91,12 @@ This gate is what makes "check every day, but only process it when X" correct: w
 
 ## Step 1.5 - The permission manifest (silence must never read as success)
 
-A workflow payload now carries **`permission_manifest`** - the tools + fetch domains this agent was pre-approved for at schedule time (`/implexa:schedule` Step 2.7). You do not need to act on it to run; the pre-grant already wrote the allowlist. It matters for ONE thing: how you handle a tool that is **denied**.
+A workflow payload now carries **`permission_manifest`** - the tools + fetch domains this agent was pre-approved for when it was scheduled in the Implexa app. You do not need to act on it to run; the pre-grant already wrote the allowlist. It matters for ONE thing: how you handle a tool that is **denied**.
 
 This run executes under the scheduled-run permission scope, which uses `defaultMode: "dontAsk"`. That means a tool NOT in the pre-approved allowlist is **denied and you keep going** (it does not prompt and does not hang, the old silent-stall trap). When that happens:
 
 - **Do NOT silently skip it and report success.** A denied tool that was load-bearing for the deliverable is a FAILURE, not a clean run.
-- Note which tool was blocked. If the deliverable cannot be produced without it, set the run `status: "failed"` in Step 3 and make `outputMarkdown` a short, specific line: `Blocked on a permission not pre-approved: <tool/domain>. Re-grant it by re-running /implexa:schedule for this agent (it will pre-approve the updated manifest).`
+- Note which tool was blocked. If the deliverable cannot be produced without it, set the run `status: "failed"` in Step 3 and make `outputMarkdown` a short, specific line: `Blocked on a permission not pre-approved: <tool/domain>. Re-grant it by re-scheduling this agent in the Implexa app (it will pre-approve the updated manifest).`
 - If the blocked tool was non-essential (an optional enrichment) and the core deliverable still came out, record `status: "partial"` and note the skipped tool in the output, never a bare "completed".
 
 The dashboard reads run state, so a `failed`/`partial` run with this reason surfaces as a visible, one-tap-fixable problem instead of an agent that appears to have never run.

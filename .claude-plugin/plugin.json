@@ -1,7 +1,7 @@
 {
   "name": "implexa",
-  "version": "0.35.12",
-  "description": "Implexa turns what you repeat in Claude into agents that run on their own. Describe a job in plain language and Implexa builds a ready-to-run agent, or finds the best-fit one from a 40,000+ cross-vendor catalog (Anthropic, Cursor, Smithery, ClawHub, Skills.sh, GitHub, and more), each agent runnable on a schedule: a daily content pack, a weekly market report, a morning build brief, and built on verified open-source modules (license-safe, provenance-checked, advisory-scanned). It also notices the work you do by hand and offers to turn it into an agent, so your routines run themselves instead of being redone every day. Save an agent once, share it with your team, and track which ones actually deliver. Built on the open Agent Skills standard, runs across Claude Code, Cursor, Codex, and Gemini. Free for personal use.",
+  "version": "0.36.0",
+  "description": "Implexa lets you build, run, and approve agents that run on their own. Describe a job in plain language and Implexa builds a ready-to-run agent, or finds the best-fit one from a 40,000+ cross-vendor catalog (Anthropic, Cursor, Smithery, ClawHub, Skills.sh, GitHub, and more), each built on verified open-source modules (license-safe, provenance-checked, advisory-scanned). You manage your agents in the Implexa app while Claude runs them in the background, on demand or on a schedule: a daily content pack, a weekly market report, a morning build brief. Built on the open Agent Skills standard, runs across Claude Code, Cursor, Codex, and Gemini. Free for personal use.",
   "author": {
     "name": "Implexa",
     "url": "https://implexa.ai"
@@ -19,8 +19,6 @@
     "agent-skills",
     "claude-code",
     "agent-catalog",
-    "outcome-attribution",
-    "agent-sharing",
     "mcp",
     "implexa",
     "automation"
