@@ -295,6 +295,18 @@ Claude Code's scheduled-task runtime auto-disables the `fireAt` task on its side
 
 Do NOT do this for `cron` routines - they are recurring and must stay active.
 
+## Step 3.7 - Propose next agents (recommendation engine)
+
+**Run this only after a SUCCESSFUL run.** Skip it entirely when the run was `failed` or `partial`, was held for approval (`awaitingApproval`), produced no usable output, or was a no-op condition gate (Step 1.4) - there is nothing to build on. On a clean `completed` run only:
+
+The run you just executed is a free signal about what this user is trying to accomplish, and you already have its output loaded - so spend a few hundred tokens proposing the 1-3 most valuable NEXT agents to build. This runs on the user's own token (this same session); the server only stores/dedups/recycles (model-free, no server LLM). Do this:
+
+- Look at the output you just produced AND call **`list_scheduled_skills`** to see the agents the user already runs (so you don't suggest one they have).
+- Draft 0-3 next-agent candidates that naturally follow from this run - each with: a short specific `title`, an `intent` (the build prompt for the new agent), a one-line `rationale` ("because you run <this agent>…" / "you moved your site to Vercel…"), a `mode` (`'cron'` for standing/time-based value like monitors + digests, `'on_demand'` for reactive/input-driven work), and for `'cron'` a `cadence` (`'daily'` | `'weekly'` | `'hourly'` - don't out-run the upstream agent: a weekly improver fed by a daily monitor is weekly). Give a `confidence` 0..1; if nothing scores well, propose FEWER or none - silence beats a dumb suggestion.
+- Call **`propose_next_agents`** with `{ runId: "<the runId from record_run_start / record_scheduled_run in Step 3>", slug: "<schedule.skill_slug>", outputSummary: "<1-2 lines on what the run produced>", candidates: [...] }`. The server classifies the trigger archetype, fills a healthy-gap schedule for cron candidates, dedups vs owned/dismissed, recycles still-open ideas with decay, and appends the ideas to the run output so they travel to the user (dashboard/email/Telegram) for free - no extra delivery plumbing.
+- **Fire-and-forget.** Produce no chat output; this is a background scheduled run with no human reading. The value is in the persisted recommendations, not a summary.
+- **COST GUARD:** at most ONE `propose_next_agents` call per run, and skip it entirely if you've already proposed for this same agent today.
+
 ## Step 4 - Exit quietly
 
 Output nothing else. The user is not in the loop; the value is in the persisted record + the Slack message that lands in their channel.

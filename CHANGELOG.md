@@ -12,6 +12,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > changes to skills, slash commands, README, or the npm proxy version pin
 > warrant a plugin version bump.
 
+## [0.35.12] - 2026-06-19
+
+Scheduled runs now propose next agents, matching the on-demand path.
+
+### Added
+
+- **Propose next agents on scheduled runs (`/implexa:run-scheduled` Step 3.7).** After a
+  scheduled cron run is recorded (Step 3) and before the quiet exit (Step 4), a clean
+  `completed` run now spends a few hundred tokens — on the user's own token, in the same
+  session that already has the run output loaded — proposing the 1–3 most valuable next
+  agents to build. It reads the run's output plus the user's existing agents
+  (`list_scheduled_skills`) and calls `propose_next_agents({ runId, slug, outputSummary,
+  candidates })`; the server stores/dedups/recycles (model-free) and appends the ideas to
+  the run output so they ride to the dashboard/email/Telegram for free. This mirrors the
+  on-demand drainer path (STEP 4b) so recommendations are generated regardless of how a run
+  fires. Skipped on `failed`/`partial`/held (`awaitingApproval`) runs, no-output runs, and
+  unmet condition gates; fire-and-forget (no chat output); one call per run; skipped if
+  already proposed for the same agent today.
+
 ## [0.30.0] - 2026-06-08
 
 Connect-your-accounts: reachability gate at schedule time, honest degradation at run time.
