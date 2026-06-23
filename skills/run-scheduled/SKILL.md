@@ -118,6 +118,26 @@ So: heartbeat-with-note liberally, at least once per real step. Cheap and free.
 If Step 2 uses orchestrate_skills, you can pass its `orchestrationId` to
 `record_scheduled_run` in Step 3 for cross-table joins.
 
+**If this run is a CHAIN/WORKFLOW (Step 2A): also report STRUCTURED step state**
+so the dashboard's Active Agents card reads "Step 2/4 · Draft SEO brief" and the
+run page shows a live done/running/pending checklist — not just a bare "Running".
+On the FIRST step, call `record_run_heartbeat` with the whole shape; thereafter
+just advance the index:
+
+```jsonc
+// first step — seed the full chain so the checklist shows every step:
+record_run_heartbeat({ runId, stepIndex: 1, totalSteps: 4,
+  stepLabels: ["Research", "Draft SEO brief", "Review", "Publish"],
+  stepLabel: "Research", note: "step 1/4: research" })
+// each later step boundary — index advances, earlier steps auto-mark done:
+record_run_heartbeat({ runId, stepIndex: 2, totalSteps: 4, stepLabel: "Draft SEO brief", note: "step 2/4: drafting" })
+```
+
+`stepLabels` (the full ordered list) is best taken from the chain `apply_workflow`
+returns in Step 2A — send it once. `totalSteps` is that chain's length. Pass
+`stepStatus: "failed"` for a step that errors. A plain (non-chain) agent run
+needs none of this — the `note` trace above is enough.
+
 ## Step 2 - Execute (branch on the payload shape)
 
 **Where to write files.** Any file this run produces or needs as scratch (a draft, a render, a log, a downloaded asset, a `package.json` for a render project) MUST go under **`~/Implexa Agents/<skill_slug>/`** — create it with `mkdir -p` first. Do NOT write to `/tmp` or into a code repo: those paths trip Claude Code's working-directory gate and stall an unattended run. `~/Implexa Agents` is pre-granted, so writes there never prompt, and the user gets one tidy place for every agent's output. Read inputs from wherever they live, but write outputs only here.
@@ -128,8 +148,8 @@ The payload from Step 1 is ONE of two shapes. Check `target_type`.
 
 The payload has no `skill.content`; it has a `workflow` object and a `nextAction` describing a whole-job chain. Follow the `nextAction` exactly:
 
-1. Call **`apply_workflow`** with `{ workflow_id: "<workflow.id>" }`. It returns the ordered chain (agent steps + tool steps + decision steps, with SKILL.md bodies inlined for agent steps), the v0.1 adaptation instruction, and a `workflow_run_id`.
-2. **Run the chain end to end.** Adapt each step to the tools actually available in THIS background context. If a step needs a tool you do not have here, skip it and note it (never fabricate a step or its result). This is the same adaptation discipline as an interactive workflow run, just unattended.
+1. Call **`apply_workflow`** with `{ workflow_id: "<workflow.id>" }`. It returns the ordered chain (agent steps + tool steps + decision steps, with SKILL.md bodies inlined for agent steps), the v0.1 adaptation instruction, and a `workflow_run_id`. **Note the chain length and each step's short label** — you will report them as live step state.
+2. **Run the chain end to end.** Adapt each step to the tools actually available in THIS background context. If a step needs a tool you do not have here, skip it and note it (never fabricate a step or its result). This is the same adaptation discipline as an interactive workflow run, just unattended. **As each step starts, call `record_run_heartbeat` with the structured step state** (`stepIndex`/`totalSteps`/`stepLabel`, seeding `stepLabels` on step 1 — see Step 1.7) so the dashboard shows "Step N/M · <label>" live while the chain runs.
 3. Capture the final synthesized output (markdown) - this is what gets persisted + delivered.
 4. Call **`record_workflow_outcome`** with `{ workflow_run_id: "<from step 1>", status: "executed", outcome: { primary: "<one-token result>", note: "<one line on what ran vs skipped + why>", steps_run: [...], steps_skipped: [...] } }`. This closes the workflow loop AND credits every component agent - the data that compounds. Do this BEFORE Step 3.
 
