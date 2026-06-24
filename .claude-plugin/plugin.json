@@ -1,6 +1,6 @@
 {
   "name": "implexa",
-  "version": "0.36.1",
+  "version": "0.36.2",
   "description": "Implexa lets you build, run, and approve agents that run on their own. Describe a job in plain language and Implexa builds a ready-to-run agent, or finds the best-fit one from a 40,000+ cross-vendor catalog (Anthropic, Cursor, Smithery, ClawHub, Skills.sh, GitHub, and more), each built on verified open-source modules (license-safe, provenance-checked, advisory-scanned). You manage your agents in the Implexa app while Claude runs them in the background, on demand or on a schedule: a daily content pack, a weekly market report, a morning build brief. Built on the open Agent Skills standard, runs across Claude Code, Cursor, Codex, and Gemini. Free for personal use.",
   "author": {
     "name": "Implexa",

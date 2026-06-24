@@ -286,11 +286,30 @@ Call **`record_scheduled_run`** with:
     { "key": "hook_strong",  "question": "Was the hook strong enough?", "kind": "choice", "options": ["Yes", "No"] },
     { "key": "length",       "question": "How was the length?",         "kind": "choice", "options": ["Too short", "Just right", "Too long"] },
     { "key": "change",       "question": "Anything to change next time?", "kind": "text" }
+  ],
+  "proposedActions": [   // the concrete NEXT STEPS this deliverable implies — surfaced as one-tap buttons
+    { "kind": "publish", "label": "Publish the article",
+      "summary": "De-dup vs blog/ + the sitemap, open a PR.",
+      "presetPrompt": "From this run's deliverable, publish the draft at <path> per the publish policy: de-dup against the content/blog/ dir + the live sitemap, then open a PR.",
+      "readiness": "ready", "confidence": 0.85 },
+    { "kind": "approve_render", "label": "Render & post the reels",
+      "summary": "Produce the reels from the ready scripts.",
+      "presetPrompt": "Render the reel scripts in this deliverable and post them.",
+      "readiness": "needs_setup", "blocker": "Rendering is a separate downstream job — confirm the render pipeline first." }
   ]
 }
 ```
 
 **`feedbackQuestions`** (include on every `completed`/`partial` run) is the improvement loop. Write 2-3 questions FROM the actual deliverable you just produced, so they are relevant to it (a reel asks about the hook + style; a market report asks if the top metric was the right one; a lead list asks if the targeting fit). Prefer `kind: "choice"` with 2-3 options for one-tap answering; include at most one `kind: "text"` "anything to change?" question. The user answers them on the dashboard, and their answers come back to you as `recentFeedback` on the NEXT run (Step 1.3) so the agent improves itself. Omit only when the output is purely informational with nothing worth rating.
+
+**`proposedActions`** (include whenever the deliverable implies real NEXT STEPS) is the action loop. A delivered run is often not the end — there's something to DO with it: publish the draft, approve/post the render, send the email. Declare those here, as the structured version of your "Holds / Next steps" section, and the dashboard turns each into a ONE-TAP button on the run (and flags the ready ones in Alerts) — instead of the user re-reading prose to figure out what to do. Each action:
+- `kind`: `publish` (push/ship/PR/deploy/go-live), `approve_render` (produce/post a render — HeyGen/Runway/reel/video), `revise` (permanently change the AGENT), or `continue` (anything else from this deliverable). Default `continue`.
+- `label`: short imperative button text ("Publish the article"). `summary`: one line on what it does.
+- `presetPrompt`: the EXACT instruction a hands-off continue-run will execute from this deliverable when tapped — write it complete, with file paths. If omitted, the label is used.
+- `readiness`: `ready` = one-tap, nothing else needed → surfaces LOUD in Alerts. `needs_setup` = BLOCKED on the user enabling something first (a repo to mount, an account to connect, a credit top-up — put what in `blocker`) → surfaces QUIET on the run page only.
+- `confidence`: 0..1; below 0.5 stays under "More actions". Default 0.8.
+
+Order most-important first; max 8. **Omit entirely for a purely informational run** (a digest, a brief) with no real next step — do NOT invent actions just to fill the field. This is distinct from `feedbackQuestions` (those rate the output; these DO something with it) and from `awaitingApproval` (a hold that stops BEFORE delivering — proposedActions ride on a run you DID deliver).
 
 **`pluginDelivery` is REQUIRED when destination.type=`slack-plugin`** and forbidden otherwise. The backend uses it to record the slack delivery receipt on the skill_runs row.
 
