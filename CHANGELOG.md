@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.36.6
+
+- Remove fixed legacy Implexa credential names from the macOS per-login
+  launchd environment during managed-MCP migration. The migration never reads
+  or logs their values and leaves unrelated environment variables untouched.
+
 ## 0.36.5
 
 - Enable `implexa@implexa` through Claude's supported plugin CLI after install
