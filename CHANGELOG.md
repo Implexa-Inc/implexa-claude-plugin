@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.36.5
+
+- Enable `implexa@implexa` through Claude's supported plugin CLI after install
+  and verify the effective state. Fresh installs, upgrades, and previously
+  disabled plugins now converge instead of leaving installed files unloaded.
+
 ## 0.36.4
 
 - Replace the `${IMPLEXA_API_KEY}` / runtime-`npx` MCP definition with a
@@ -15,7 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 > **Note:** the plugin is a thin wrapper that pins skills + slash commands and
-> points at `@implexa/mcp-server` (npm) which proxies to `core.implexa.ai`.
+> ships a versioned local MCP transport authorized by the running Implexa app.
 > Backend tool changes (new tools, fixes to existing tools) ship through the
 > backend deploy and propagate to all clients without a plugin release. Only
 > changes to skills, slash commands, README, or the npm proxy version pin
