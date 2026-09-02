@@ -12,7 +12,7 @@
 #   4. Removes the retired duplicate direct MCP definition
 #   5. Prunes any retired user-level Implexa hooks from settings.json
 #      (the old ambient-capture + recommender launchers)
-#   6. Auto-installs the Implexa plugin into Claude Code
+#   6. Auto-installs and enables the Implexa plugin in Claude Code
 #   7. Backs up your previous settings.json
 #
 # Implexa is app-first: you build, run, approve, and schedule agents in the
@@ -699,7 +699,15 @@ install_implexa_plugin() {
   fi
   mv "$tmp_ip" "$INSTALLED_PLUGINS"
 
-  ok "Implexa plugin installed (v$version)"
+  # Registration and activation are separate Claude states. Use Claude's
+  # supported command to repair fresh installs, upgrades, and previously
+  # disabled plugins; never patch Claude's activation map ourselves.
+  if ! "$MARKETPLACE_PATH/scripts/ensure-plugin-enabled.sh"; then
+    err "Plugin files were installed, but Claude did not enable implexa@implexa"
+    return 1
+  fi
+
+  ok "Implexa plugin installed and enabled (v$version)"
   return 0
 }
 
@@ -738,6 +746,13 @@ if [ -z "$PLUGIN_HOOK" ]; then
   echo "    please report it: https://github.com/Implexa-Inc/implexa-claude-plugin/issues"
 else
   ok "Plugin found at $PLUGIN_HOOK"
+fi
+
+if "$MARKETPLACE_PATH/scripts/ensure-plugin-enabled.sh"; then
+  ok "Plugin enabled in Claude"
+else
+  err "Plugin is installed but not enabled. Run: claude plugin enable implexa@implexa --scope user"
+  exit 1
 fi
 
 # Confirm the config exists and settings.json is still valid JSON after our patches.
