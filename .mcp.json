@@ -1,12 +1,8 @@
 {
   "mcpServers": {
-    "implexa": {
-      "command": "npx",
-      "args": ["-y", "@implexa/mcp-server"],
-      "env": {
-        "IMPLEXA_API_KEY": "${IMPLEXA_API_KEY}",
-        "IMPLEXA_API_URL": "${IMPLEXA_API_URL:-https://core.implexa.ai}"
-      }
+    "implexa_managed": {
+      "command": "/bin/sh",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/implexa-claude-mcp"]
     }
   }
 }
