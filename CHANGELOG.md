@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.36.4
+
+- Replace the `${IMPLEXA_API_KEY}` / runtime-`npx` MCP definition with a
+  versioned, secret-free transport shipped in the plugin and authenticated by
+  the running Implexa Desktop app's revocable local broker.
+- Migrate away the retired duplicate Claude Desktop MCP entry while preserving
+  unrelated servers. The owner-only `implexa.env` remains for background hooks,
+  not MCP authentication.
+
 All notable changes to the Implexa Claude Code plugin.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),

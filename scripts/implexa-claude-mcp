@@ -1,0 +1,33 @@
+#!/bin/sh
+# Secret-free Claude MCP transport. The Implexa Desktop app owns the account
+# credential and publishes only a short-lived Unix-socket capability. This
+# bundled, versioned shim carries JSON-RPC bytes; it never downloads a runtime
+# and never reads, receives, or expands an API key.
+set -eu
+
+LOCATOR="$HOME/.implexa/codex-mcp.current"
+UID_NOW="$(/usr/bin/id -u)"
+
+refuse() {
+  echo "Implexa MCP is unavailable. Open Implexa, sign in, then retry." >&2
+  exit 1
+}
+
+[ -f "$LOCATOR" ] || refuse
+[ ! -L "$LOCATOR" ] || refuse
+if STAT_LINE="$(/usr/bin/stat -f '%u %Lp' "$LOCATOR" 2>/dev/null)"; then
+  :
+elif STAT_LINE="$(/usr/bin/stat -c '%u %a' "$LOCATOR" 2>/dev/null)"; then
+  :
+else
+  refuse
+fi
+[ "$STAT_LINE" = "$UID_NOW 600" ] || refuse
+
+SOCKET="$(/bin/cat "$LOCATOR")" || refuse
+[ -n "$SOCKET" ] || refuse
+[ "$(/usr/bin/wc -l < "$LOCATOR" | /usr/bin/tr -d ' ')" = "0" ] || refuse
+printf '%s' "$SOCKET" | /usr/bin/grep -Eq '^/private/tmp/implexa-codex-mcp-[A-Za-z0-9]{6}/broker-[a-f0-9]{48}\.sock$' || refuse
+[ -S "$SOCKET" ] || refuse
+
+exec /usr/bin/nc -U "$SOCKET"

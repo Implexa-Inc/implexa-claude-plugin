@@ -10,7 +10,7 @@
 curl -fsSL https://core.implexa.ai/install.sh | bash
 ```
 
-One paste, ~30 seconds. Browser opens for sign-up / sign-in, you approve, terminal finishes the rest. Installs the API key, hooks, plugin, and MCP wiring — all in one go.
+One paste, ~30 seconds. Browser opens for sign-up / sign-in, you approve, and the plugin installs its versioned local MCP transport. Implexa Desktop keeps the account credential and authorizes Claude through a short-lived local broker; no API key is placed in MCP configuration and no runtime npm download is used.
 
 Free forever. No credit card. MIT-licensed plugin · hosted service.
 
